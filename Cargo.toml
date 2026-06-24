@@ -1,0 +1,16 @@
+# /Cargo.toml
+
+[workspace]
+members = [
+    "don_macros",
+    "don_core",
+    "example_app"
+]
+resolver = "2"
+
+# for  Open Source 
+[workspace.package]
+version = "0.1.0"
+authors = ["M.Mubashar Ameen <mubfreelance332@gmail.com>"]
+edition = "2021"
+description = "A blazing fast, Django-like web framework for Rust."
