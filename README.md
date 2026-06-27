@@ -26,7 +26,8 @@ Create a new Rust project:
 cargo new my_don_app
 cd my_don_app
 -------------------
->Add the required dependencies to your Cargo.toml:
+```
+Add the required dependencies to your Cargo.toml:
 **cargo.toml**
 [dependencies]
 tokio = { version = "1.36", features = ["full"] }
@@ -35,22 +36,26 @@ serde_json = "1.0"
 sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls"] }
 dotenvy = "0.15"
 
+
 # The Don Framework
 don_core = "0.1.1"
 don_macros = "0.1.0"
-
+```
 Create a .env file in the root of your project:
+```
 **.env**
 DATABASE_URL=postgres://postgres:password@localhost:5432/don_app_db
 JWT_SECRET=your_super_secret_jwt_key_12345
 SUPERUSER_EMAIL=admin@don.com
 SUPERUSER_PASSWORD=supersecret
-
+```
+```
 Setup your PostgreSQL Database:
 
 sqlx database create
 sqlx migrate add init_users
-
+```
+```
 In the generated .sql migration file, add the following table:
 **.sql**
 CREATE TABLE users (
@@ -59,16 +64,18 @@ CREATE TABLE users (
     password_hash VARCHAR(255) NOT NULL,
     metadata JSONB DEFAULT '{}'
 );
-
+```
+```
 Run the migration:
 
 sqlx migrate run
+```
 
 🔐 2. Authentication Made Easy
 
 With Don Framework, you don't need to write complex Axum handlers for
 authentication. Just define your User struct!
-
+```
 In your src/main.rs:
 **main.rs**
 use don_core::DonServer;
@@ -91,11 +98,12 @@ async fn main() {
         .await
         .expect("Server crashed!");
 }
-
+```
 Run your server:
-
+```
 **cargo run**
-
+```
+```
 🧪 Test the Auth API
 
 1. Signup (With dynamic extra fields!) You can send any extra fields (like age,
@@ -112,10 +120,10 @@ curl -X POST http://localhost:8080/auth/login \
      -H "Content-Type: application/json" \
      -d '{"email": "john@test.com", "password": "password123"}'
 
-
+```
 ---
 
-
+```
 
 ## 🛡️ 3. Route Protection & Admin Guards
 
@@ -124,7 +132,8 @@ Don Framework provides a built-in, zero-configuration security guard (`DonAdmin`
 ### Protecting Any Custom Route
 
 You don't need to write complex middleware. Simply add `_admin: DonAdmin` as a parameter to your Axum handler. The framework will automatically intercept the request, verify the JWT token, check the user's role, and block unauthorized access!
-
+```
+```
 Update your `src/main.rs`:
 
 ```rust
@@ -159,7 +168,8 @@ async fn main() {
         .await
         .expect("Server crashed!");
 }
-
+```
+```
 🧪 Test the Protected Route
 
 1. Try accessing without a token (Hacker attempt):
@@ -173,7 +183,7 @@ Output: Missing Token! Please login. 🛑
 curl -X POST http://localhost:8080/auth/login \
      -H "Content-Type: application/json" \
      -d '{"email": "admin@don.com", "password": "supersecret"}'
-
+```
 (Copy the token string from the JSON response).
 
 3. Access the route with the Token: Replace YOUR_TOKEN_HERE with the actual
