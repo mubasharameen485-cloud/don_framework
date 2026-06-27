@@ -22,13 +22,14 @@ Building web APIs in Rust is incredibly fast and safe, but it often requires wri
 
 Create a new Rust project:
 ```bash
--------------------
+
 cargo new my_don_app
 cd my_don_app
--------------------
+
 ```
 Add the required dependencies to your Cargo.toml:
-**cargo.toml**
+###cargo.toml
+```toml
 [dependencies]
 tokio = { version = "1.36", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -42,8 +43,9 @@ don_core = "0.1.1"
 don_macros = "0.1.0"
 ```
 Create a .env file in the root of your project:
-```
-**.env**
+
+###.env
+```env
 DATABASE_URL=postgres://postgres:password@localhost:5432/don_app_db
 JWT_SECRET=your_super_secret_jwt_key_12345
 SUPERUSER_EMAIL=admin@don.com
@@ -57,7 +59,8 @@ sqlx migrate add init_users
 ```
 ```
 In the generated .sql migration file, add the following table:
-**.sql**
+### init_users.sql
+```.sql
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -65,9 +68,11 @@ CREATE TABLE users (
     metadata JSONB DEFAULT '{}'
 );
 ```
+```bash
+sqlx database create
+sqlx migrate add init_users
 ```
-Run the migration:
-
+```bash
 sqlx migrate run
 ```
 
