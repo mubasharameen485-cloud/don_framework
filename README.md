@@ -202,3 +202,107 @@ Output: Welcome to the Secure Dashboard! You have Admin access.
 
 ---
 
+
+## 📦 4. Active Record ORM (Full CRUD API)
+
+Tired of writing repetitive SQL queries and API handlers for every database table? Don Framework introduces the `#[derive(DonModel)]` macro. 
+
+By simply attaching this macro to your struct, the framework automatically generates **5 RESTful API routes** (Create, Read All, Read One, Update, Delete) and their underlying PostgreSQL queries!
+
+### Step 1: Create the Database Table
+
+First, create a migration for your new model (e.g., `Product`):
+```bash
+sqlx migrate add create_products
+```
+
+Add the SQL code to the generated migration file:
+```sql
+CREATE TABLE products (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    price INT NOT NULL
+);
+```
+Run the migration:
+```bash
+sqlx migrate run
+```
+Step 2: Define Your Model and Mount Routes
+
+Update your src/main.rs to include the new Product model:
+```rust
+use don_core::{DonServer, axum::Router};
+use don_macros::{DonAuth, DonModel};
+use serde::{Deserialize, Serialize};
+
+#[derive(DonAuth)]
+pub struct User {
+    pub email: String,
+}
+
+// 1. Define your Database Model
+// The `DonModel` macro generates SQL queries and Axum handlers automatically!
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
+pub struct Product {
+    pub id: i32, // ID is required. Pass 0 when creating, DB will auto-increment.
+    pub name: String,
+    pub price: i32,
+}
+
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+
+    // 2. Mount the auto-generated CRUD routes under a specific path
+    let api_routes = Router::new()
+        .nest("/api/products", Product::get_api_routes());
+
+    // 3. Start the Server
+    DonServer::new()
+        .port(8080)
+        .with_routes(User::get_auth_routes())
+        .with_routes(api_routes) // Inject the CRUD routes
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+🧪 Test the CRUD API
+
+Run your server (cargo run), open a new terminal, and test the auto-generated
+endpoints!
+
+#### 1. CREATE (POST): Add a new product
+```bash
+curl -X POST http://localhost:8080/api/products \
+     -H "Content-Type: application/json" \
+     -d '{"id": 0, "name": "MacBook Pro", "price": 2000}'
+```
+
+#### 2. READ ALL (GET): Fetch all products
+```bash
+curl -X GET http://localhost:8080/api/products
+```
+
+#### 3. READ ONE (GET): Fetch a single product by ID
+```bash
+curl -X GET http://localhost:8080/api/products/1
+```
+
+#### 4. UPDATE (PUT): Update an existing product
+```bash
+curl -X PUT http://localhost:8080/api/products/1 \
+     -H "Content-Type: application/json" \
+     -d '{"id": 1, "name": "MacBook Pro M3 Max", "price": 3500}'
+```
+#### 5. DELETE (DELETE): Remove a product
+```bash
+curl -X DELETE http://localhost:8080/api/products/1
+
+```
+---
+
+
+
+
