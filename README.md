@@ -300,32 +300,46 @@ curl -X PUT http://localhost:8080/api/products/1 \
 ```bash
 curl -X DELETE http://localhost:8080/api/products/1
 
----------------------------
+
+
+```
+---
 ---
 
 ##  How It Works (Under the Hood)
 
-The Don Framework operates on the principles of **Meta-Programming (Procedural Macros)** and the **Active Record Pattern**. 
+The Don Framework is built on the principles of **Procedural Macros (Meta-Programming)** and the **Active Record Pattern**.
 
-Instead of writing repetitive SQL queries and Axum handlers manually, the framework uses Rust's `proc-macro` system to parse your Structs at compile-time. It then dynamically injects the required CRUD operations, routing logic, and database bindings directly into your code.
+Instead of manually writing repetitive SQL queries, CRUD handlers, and route definitions for every database table, Don Framework leverages Rust's `proc-macro` system to analyze your structs at compile time. It automatically generates the required SQL operations, Axum route handlers, and database bindings, significantly reducing boilerplate while preserving Rust's type safety and performance.
 
-For Authentication, it utilizes a **Schema-less Dynamic Payload** approach. When a user sends arbitrary extra fields (like `age`, `gender`, or `city`) during signup, the framework intercepts the JSON request and safely stores these unpredictable fields into a PostgreSQL `JSONB` (Metadata) column. This gives developers the strict type-safety and performance of Rust, combined with the ultimate flexibility of NoSQL—all without writing a single line of manual SQL.
+### 🔐 Dynamic Authentication Metadata
+
+For authentication, Don Framework supports a **schema-less dynamic payload** approach.
+
+During user registration, if the client sends additional fields such as `age`, `gender`, `city`, or any other custom attributes, the framework automatically separates these unknown fields from the typed Rust struct and stores them inside a PostgreSQL `JSONB` metadata column.
+
+This approach combines the safety and performance of strongly typed Rust models with the flexibility of NoSQL-style dynamic data—without requiring developers to write custom SQL or serialization logic.
 
 ---
 
 ##  About the Author
 
-Hi, I'm **M. Mubashar Ameen**, a Full-Stack and Backend Systems Engineer specializing in the MERN stack, Next.js, Rust (gRPC, distributed databases), and Web3. 
+Hi, I'm **M. Mubashar Ameen**, a Full-Stack and Backend Systems Engineer specializing in the **MERN Stack**, **Next.js**, **Rust (gRPC, distributed systems)**, and **Web3**.
 
-I fell in love with Rust's performance and memory safety, but I was deeply frustrated by the endless manual boilerplate required to set up basic APIs. Having previously worked with Python's Django, I craved that same "plug-and-play" developer experience in Rust. Out of this frustration, I researched Rust's macro system and, with significant guidance and brainstorming alongside **Google AI Studio**, I built the initial version of the Don Framework in just a few days. 
+My journey with Rust began because of its exceptional performance, memory safety, and reliability. However, I quickly realized that building even simple REST APIs often involved a significant amount of repetitive boilerplate.
 
-This is an ongoing journey, and I plan to continuously evolve this project to make Rust web development as seamless and enjoyable as possible.
+Coming from Python's Django ecosystem, I wanted to bring the same "plug-and-play" developer experience to Rust.
+
+After exploring Rust's procedural macro system and experimenting with compile-time code generation, I created the initial version of **Don Framework**. Throughout the development process, **Google AI Studio** was used extensively as a brainstorming and learning companion while designing the architecture and refining ideas.
+
+Don Framework is an ongoing project, and the long-term vision is to make Rust backend development faster, cleaner, and more enjoyable for developers of all experience levels.
+
+###  Connect
+
+* **LinkedIn:** https://www.linkedin.com/in/m-mubashar-ameen-637359397/
+* **Email:**mubfreelance332@gmail.com
 
 
-- **LinkedIn:** [https://www.linkedin.com/in/m-mubashar-ameen-637359397/]
-
-```
----
 
 
 
