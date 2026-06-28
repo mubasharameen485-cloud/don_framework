@@ -300,6 +300,30 @@ curl -X PUT http://localhost:8080/api/products/1 \
 ```bash
 curl -X DELETE http://localhost:8080/api/products/1
 
+---------------------------
+---
+
+##  How It Works (Under the Hood)
+
+The Don Framework operates on the principles of **Meta-Programming (Procedural Macros)** and the **Active Record Pattern**. 
+
+Instead of writing repetitive SQL queries and Axum handlers manually, the framework uses Rust's `proc-macro` system to parse your Structs at compile-time. It then dynamically injects the required CRUD operations, routing logic, and database bindings directly into your code.
+
+For Authentication, it utilizes a **Schema-less Dynamic Payload** approach. When a user sends arbitrary extra fields (like `age`, `gender`, or `city`) during signup, the framework intercepts the JSON request and safely stores these unpredictable fields into a PostgreSQL `JSONB` (Metadata) column. This gives developers the strict type-safety and performance of Rust, combined with the ultimate flexibility of NoSQL—all without writing a single line of manual SQL.
+
+---
+
+##  About the Author
+
+Hi, I'm **M. Mubashar Ameen**, a Full-Stack and Backend Systems Engineer specializing in the MERN stack, Next.js, Rust (gRPC, distributed databases), and Web3. 
+
+I fell in love with Rust's performance and memory safety, but I was deeply frustrated by the endless manual boilerplate required to set up basic APIs. Having previously worked with Python's Django, I craved that same "plug-and-play" developer experience in Rust. Out of this frustration, I researched Rust's macro system and, with significant guidance and brainstorming alongside **Google AI Studio**, I built the initial version of the Don Framework in just a few days. 
+
+This is an ongoing journey, and I plan to continuously evolve this project to make Rust web development as seamless and enjoyable as possible.
+
+
+- **LinkedIn:** [https://www.linkedin.com/in/m-mubashar-ameen-637359397/]
+
 ```
 ---
 
