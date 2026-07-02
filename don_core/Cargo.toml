@@ -1,9 +1,9 @@
 [package]
 name = "don_core"
-version = "0.1.1"
+version = "0.2.1"
 edition = "2021"
-description = "Core engine for the Don Web Framework" # <-- Yahan aayega!
-license = "MIT"                                       # <-- Yahan aayega!
+description = "Core engine for the Don Web Framework" 
+license = "MIT"                                      
 
 [dependencies]
 axum = { version = "0.7", features = ["macros"] }
@@ -20,4 +20,4 @@ tracing-subscriber = "0.3"
 dotenvy = "0.15"
 
 
-don_macros = { path = "../don_macros", version = "0.1.0" }
+don_macros = { path = "../don_macros", version = "0.2.0" }
