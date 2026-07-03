@@ -24,11 +24,7 @@ pub fn don_auth_derive(input: TokenStream) -> TokenStream {
     };
     TokenStream::from(expanded)
 }
-
-// ==========================================
-// 2. DON MODEL MACRO (FULL CRUD API + DATABASE)
-// ==========================================
-// don_macros/src/lib.rs (DonModel Macro part)
+// don_macros/src/lib.rs (Sirf DonModel Macro ka hissa update karo)
 
 #[proc_macro_derive(DonModel)]
 pub fn don_model_derive(input: TokenStream) -> TokenStream {
@@ -49,7 +45,10 @@ pub fn don_model_derive(input: TokenStream) -> TokenStream {
     let insert_columns = insert_fields.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(", ");
     
     let insert_query = format!("INSERT INTO {} ({}) VALUES ({}) RETURNING *", table_name, insert_columns, bind_marks);
-    let select_all_query = format!("SELECT * FROM {}", table_name);
+    
+    // NAYA JADOO: Pagination Query (ORDER BY id DESC LIMIT $1 OFFSET $2)
+    let select_all_query = format!("SELECT * FROM {} ORDER BY id DESC LIMIT $1 OFFSET $2", table_name);
+    
     let select_by_id_query = format!("SELECT * FROM {} WHERE id = $1", table_name);
     let delete_query = format!("DELETE FROM {} WHERE id = $1", table_name);
     
@@ -61,41 +60,33 @@ pub fn don_model_derive(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         impl #struct_name {
-            // ==========================================
-            // DATABASE METHODS (With Hooks Injected!)
-            // ==========================================
-            
-            
             pub async fn save(&mut self, pool: &don_core::sqlx::PgPool) -> Result<Self, String> {
-               
                 don_core::DonHooks::before_save(self).await?;
-
-                
                 let result = don_core::sqlx::query_as::<_, Self>(#insert_query)
                     #(#binds)*
                     .fetch_one(pool)
                     .await
                     .map_err(|e| e.to_string())?;
-                
                 Ok(result)
             }
 
             pub async fn update(&mut self, pool: &don_core::sqlx::PgPool, id: i32) -> Result<Self, String> {
-               
                 don_core::DonHooks::before_update(self).await?;
-
                 let result = don_core::sqlx::query_as::<_, Self>(#update_query)
                     #(#update_binds)*
                     .bind(id)
                     .fetch_one(pool)
                     .await
                     .map_err(|e| e.to_string())?;
-                
                 Ok(result)
             }
 
-            pub async fn find_all(pool: &don_core::sqlx::PgPool) -> Result<Vec<Self>, String> {
+            // NAYA JADOO: Database function ab page aur limit accept karega
+            pub async fn find_all(pool: &don_core::sqlx::PgPool, page: i64, limit: i64) -> Result<Vec<Self>, String> {
+                let offset = (page - 1) * limit; // Math for pagination
                 don_core::sqlx::query_as::<_, Self>(#select_all_query)
+                    .bind(limit)
+                    .bind(offset)
                     .fetch_all(pool)
                     .await
                     .map_err(|e| e.to_string())
@@ -110,11 +101,7 @@ pub fn don_model_derive(input: TokenStream) -> TokenStream {
             }
 
             pub async fn delete(pool: &don_core::sqlx::PgPool, id: i32) -> Result<u64, String> {
-                let result = don_core::sqlx::query(#delete_query)
-                    .bind(id)
-                    .execute(pool)
-                    .await
-                    .map_err(|e| e.to_string())?;
+                let result = don_core::sqlx::query(#delete_query).bind(id).execute(pool).await.map_err(|e| e.to_string())?;
                 Ok(result.rows_affected())
             }
 
@@ -123,20 +110,25 @@ pub fn don_model_derive(input: TokenStream) -> TokenStream {
             // ==========================================
             pub async fn api_create(
                 don_core::axum::extract::State(state): don_core::axum::extract::State<don_core::server::AppState>,
-                // NAYA: mut payload liya hai taake hook isay change kar sake
                 don_core::axum::Json(mut payload): don_core::axum::Json<Self>,
             ) -> Result<don_core::axum::Json<Self>, (don_core::axum::http::StatusCode, String)> {
                 match payload.save(&state.db).await {
                     Ok(saved) => Ok(don_core::axum::Json(saved)),
-                   
                     Err(e) => Err((don_core::axum::http::StatusCode::BAD_REQUEST, e)),
                 }
             }
 
+            // NAYA JADOO: API Handler ab URL se Query Params pakrega
             pub async fn api_get_all(
                 don_core::axum::extract::State(state): don_core::axum::extract::State<don_core::server::AppState>,
+                don_core::axum::extract::Query(params): don_core::axum::extract::Query<don_core::QueryParams>,
             ) -> Result<don_core::axum::Json<Vec<Self>>, (don_core::axum::http::StatusCode, String)> {
-                match Self::find_all(&state.db).await {
+                
+                // Agar user ne page/limit nahi diya, toh default (Page 1, Limit 10) laga do
+                let page = params.page.unwrap_or(1);
+                let limit = params.limit.unwrap_or(10);
+
+                match Self::find_all(&state.db, page, limit).await {
                     Ok(records) => Ok(don_core::axum::Json(records)),
                     Err(e) => Err((don_core::axum::http::StatusCode::INTERNAL_SERVER_ERROR, e)),
                 }
