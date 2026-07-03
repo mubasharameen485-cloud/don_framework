@@ -386,7 +386,86 @@ curl -X POST http://localhost:8080/api/products \
      -d '{"id": 0, "name": "gaming mouse", "price": 50}'
 Output: {"id":1,"name":"GAMING MOUSE","price":50} ✅ (Name automatically capitalized!).
 ```
+## 📄 6. Zero-Config Pagination & Query Params
 
+Handling pagination (Limits, Offsets, Query Params) in standard APIs requires writing repetitive boilerplate for every single route. 
+
+**Don Framework does this automatically.** When you use the `#[derive(DonModel)]` macro, the generated `GET /` route is instantly equipped with pagination capabilities. If the user doesn't provide query parameters, it defaults to `page=1` and `limit=10`.
+
+### The Code (`src/main.rs`)
+
+You don't need to write a single line of extra code to enable pagination. Just define your model and start the server! Here is a complete, runnable example:
+
+```rust
+use don_core::{DonServer, DonHooks, axum::Router};
+use don_macros::DonModel;
+use serde::{Deserialize, Serialize};
+
+// ==========================================
+// 1. Define your Database Model
+// ==========================================
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
+pub struct Product {
+    pub id: i32, 
+    pub name: String,
+    pub price: i32,
+}
+
+// ==========================================
+// 2. Optional: Lifecycle Hooks
+// ==========================================
+impl DonHooks for Product {
+    async fn before_save(&mut self) -> Result<(), String> {
+        self.name = self.name.trim().to_uppercase();
+        Ok(()) 
+    }
+}
+
+// ==========================================
+// 3. Start the Server
+// ==========================================
+#[tokio::main]
+async fn main() {
+    // Load environment variables (.env)
+    dotenvy::dotenv().ok();
+    println!("Starting Don Framework with Pagination...");
+
+    // Mount the auto-generated CRUD routes
+    let api_routes = Router::new()
+        .nest("/api/products", Product::get_api_routes());
+
+    // Start the Don Server
+    DonServer::new()
+        .port(8080)
+        .with_routes(api_routes)
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+### Test the Pagination API
+Run your server (cargo run) and open a new terminal to test the auto-generated pagination.
+## 1. Add some dummy data (Run this 3-4 times with different names):
+```
+curl -X POST http://localhost:8080/api/products \
+     -H "Content-Type: application/json" \
+     -d '{"id": 0, "name": "Product A", "price": 100}'
+```
+## 2. Test Default Pagination (No params provided):
+
+Fetches the latest 10 records (Default: page=1, limit=10).
+```
+curl -X GET http://localhost:8080/api/products
+```
+## 3. Test Custom Pagination (The Magic):
+Fetch only 2 records from Page 1:
+```
+curl -X GET "http://localhost:8080/api/products?page=1&limit=2"
+```
+Fetch the next 2 records from Page 2:
+```
+curl -X GET "http://localhost:8080/api/products?page=2&limit=2"
+```
 ##  How It Works (Under the Hood)
 
 The Don Framework is built on the principles of **Procedural Macros (Meta-Programming)** and the **Active Record Pattern**.
