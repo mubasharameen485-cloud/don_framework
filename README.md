@@ -466,6 +466,98 @@ Fetch the next 2 records from Page 2:
 ```
 curl -X GET "http://localhost:8080/api/products?page=2&limit=2"
 ```
+## 🔗 7. 1-Line Database Relationships
+
+Handling relationships like **One-to-One**, **One-to-Many**, and **Many-to-Many** usually requires writing complex, error-prone SQL `JOIN` queries and custom API handlers. 
+
+Don Framework abstracts this away completely! You can generate fully-functional relationship endpoints with just **1 line of code** using `has_one_route`, `has_many_route`, and `many_to_many_route`.
+
+### The Code (`src/main.rs`)
+
+Here is a complete, runnable example showing how to link Users, Profiles, Products, and Tags without writing a single line of SQL:
+
+```rust
+use don_core::{DonServer, axum::Router, DonHooks};
+use don_core::{has_many_route, has_one_route, many_to_many_route}; 
+use don_macros::{DonAuth, DonModel};
+use serde::{Deserialize, Serialize};
+
+#[derive(DonAuth)]
+pub struct User { pub email: String }
+
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
+pub struct Profile { pub id: i32, pub user_id: i32, pub bio: String }
+impl DonHooks for Profile {}
+
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
+pub struct Product { pub id: i32, pub user_id: i32, pub name: String, pub price: i32 }
+impl DonHooks for Product {}
+
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
+pub struct Tag { pub id: i32, pub name: String }
+impl DonHooks for Tag {}
+
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+    println!("Starting Don Framework with 1-Line Relations...");
+
+    let api_routes = Router::new()
+        .nest("/api/profiles", Profile::get_api_routes())
+        .nest("/api/products", Product::get_api_routes())
+        .nest("/api/tags", Tag::get_api_routes())
+        
+        // ✨ THE MAGIC: 1-Line Relationship Routes!
+        
+        // 1. ONE-TO-ONE (Get User's Profile -> Returns Object {})
+        .merge(has_one_route::<Profile>("/api/users/:id/profile", "profiles", "user_id"))
+        
+        // 2. ONE-TO-MANY (Get User's Products -> Returns Array [])
+        .merge(has_many_route::<Product>("/api/users/:id/products", "products", "user_id"))
+        
+        // 3. MANY-TO-MANY (Get Product's Tags -> Returns Array [])
+        .merge(many_to_many_route::<Tag>("/api/products/:id/tags", "tags", "product_tags", "product_id", "tag_id"));
+
+    DonServer::new()
+        .port(8080)
+        .with_routes(User::get_auth_routes())
+        .with_routes(api_routes)
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+ ## Test the Relationships API
+Run your server (cargo run) and open a new terminal to test the relationships.
+## 1. Create Dummy Data:
+```
+# Create User (ID 1)
+curl -X POST http://localhost:8080/auth/signup -H "Content-Type: application/json" -d '{"email": "ali@test.com", "password": "123"}'
+
+# Create Profile for User 1
+curl -X POST http://localhost:8080/api/profiles -H "Content-Type: application/json" -d '{"id": 0, "user_id": 1, "bio": "I am a Rust Developer"}'
+
+# Create Product for User 1
+curl -X POST http://localhost:8080/api/products -H "Content-Type: application/json" -d '{"id": 0, "user_id": 1, "name": "MacBook", "price": 2000}'
+
+# Create a Tag (ID 1)
+curl -X POST http://localhost:8080/api/tags -H "Content-Type: application/json" -d '{"id": 0, "name": "Electronics"}'
+```
+(Note: For Many-to-Many, manually link product_id=1 and tag_id=1 in your database's product_tags table).
+
+## 2. Test ONE-TO-ONE (Get User's Profile):
+   ```
+curl -X GET http://localhost:8080/api/users/1/profile
+```
+## 4. Test ONE-TO-MANY (Get User's Products):
+```
+curl -X GET http://localhost:8080/api/users/1/products
+```
+## 5. Test MANY-TO-MANY (Get Product's Tags):
+```
+curl -X GET http://localhost:8080/api/products/1/tags
+```
+
 ##  How It Works (Under the Hood)
 
 The Don Framework is built on the principles of **Procedural Macros (Meta-Programming)** and the **Active Record Pattern**.
