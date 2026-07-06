@@ -175,3 +175,83 @@ pub fn don_model_derive(input: TokenStream) -> TokenStream {
 
     TokenStream::from(expanded)
 }
+
+// don_macros/src/lib.rs (Aakhir mein add karo)
+
+// ==========================================
+// 3. DON GUARD MACRO (FLEXIBLE RBAC / IAM)
+// ==========================================
+#[proc_macro_derive(DonGuard, attributes(don_role))]
+pub fn don_guard_derive(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as DeriveInput);
+    let struct_name = &ast.ident;
+
+    // 1. User ne jo role diya hai (e.g., #[don_role = "manager"]) usay parhna
+    let mut role_name = String::new();
+    for attr in &ast.attrs {
+        if attr.path().is_ident("don_role") {
+            if let syn::Meta::NameValue(meta) = &attr.meta {
+                if let syn::Expr::Lit(expr_lit) = &meta.value {
+                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
+                        role_name = lit_str.value();
+                    }
+                }
+            }
+        }
+    }
+
+    if role_name.is_empty() {
+        panic!("DonGuard requires a #[don_role = \"...\"] attribute! Example: #[don_role = \"manager\"]");
+    }
+
+    // 2. Axum ka Middleware (Extractor) Generate karna
+    let expanded = quote! {
+        #[don_core::axum::async_trait]
+        impl<S> don_core::axum::extract::FromRequestParts<S> for #struct_name
+        where
+            S: Send + Sync,
+        {
+            type Rejection = (don_core::axum::http::StatusCode, String);
+
+            async fn from_request_parts(
+                parts: &mut don_core::axum::http::request::Parts,
+                _state: &S,
+            ) -> Result<Self, Self::Rejection> {
+                
+                // A. Token Nikalna
+                let auth_header = parts.headers.get("authorization").and_then(|h| h.to_str().ok());
+                let auth_header = match auth_header {
+                    Some(header) => header,
+                    None => return Err((don_core::axum::http::StatusCode::UNAUTHORIZED, "Missing Token! Please login.".to_string())),
+                };
+
+                if !auth_header.starts_with("Bearer ") {
+                    return Err((don_core::axum::http::StatusCode::UNAUTHORIZED, "Invalid Token Format!".to_string()));
+                }
+
+                let token = &auth_header[7..];
+                let secret = std::env::var("JWT_SECRET").expect("JWT_SECRET missing in .env");
+
+                // B. Token Decode karna
+                let decoded = don_core::jsonwebtoken::decode::<don_core::auth::Claims>(
+                    token,
+                    &don_core::jsonwebtoken::DecodingKey::from_secret(secret.as_bytes()),
+                    &don_core::jsonwebtoken::Validation::default(),
+                ).map_err(|_| (don_core::axum::http::StatusCode::UNAUTHORIZED, "Invalid or Expired Token!".to_string()))?;
+
+                // C. JADOO: Role Check karna!
+                if decoded.claims.role != #role_name {
+                    return Err((
+                        don_core::axum::http::StatusCode::FORBIDDEN, 
+                        format!("Access Denied: Route requires '{}' role! Your role is '{}'.", #role_name, decoded.claims.role)
+                    ));
+                }
+
+                // D. Agar sab theek hai toh Rasta Khol do!
+                Ok(#struct_name)
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
