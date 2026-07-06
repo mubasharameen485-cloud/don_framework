@@ -604,8 +604,126 @@ curl -X GET http://localhost:8080/api/users/1/products
 curl -X GET http://localhost:8080/api/products/1/tags
 ```
 
-##  How It Works (Under the Hood)
+## 🔐 8. Flexible Role-Based Access Control (RBAC)
 
+In a real-world application, you don't just have an "Admin". You have Managers, Editors, Finance teams, etc. Don Framework provides a highly flexible IAM (Identity and Access Management) system.
+
+By using the `#[derive(DonGuard)]` macro, you can generate custom middleware extractors for any role in just 2 lines of code!
+
+### The Code (`src/main.rs`)
+
+Here is a complete, runnable example showing how to create custom roles and protect specific routes:
+
+```rust
+use don_core::{DonServer, axum::Router};
+use don_macros::{DonAuth, DonGuard}; 
+
+// 1. Auth Model (Handles Signup/Login)
+#[derive(DonAuth)]
+pub struct User { 
+    pub email: String 
+}
+
+// ==========================================
+// 2. DEFINE CUSTOM ROLE GUARDS
+// ==========================================
+
+// Creates a Guard that only allows users with role="manager"
+#[derive(DonGuard)]
+#[don_role = "manager"]
+pub struct ManagerGuard;
+
+// Creates a Guard that only allows users with role="editor"
+#[derive(DonGuard)]
+#[don_role = "editor"]
+pub struct EditorGuard;
+
+// ==========================================
+// 3. PROTECTED ROUTES
+// ==========================================
+
+// Only Managers can access this route
+async fn manager_dashboard(_guard: ManagerGuard) -> &'static str {
+    "Welcome Manager! You have access to the financial reports. 📊"
+}
+
+// Only Editors can access this route
+async fn editor_dashboard(_guard: EditorGuard) -> &'static str {
+    "Welcome Editor! You can write and edit articles. 📝"
+}
+
+// ==========================================
+// 4. START THE SERVER
+// ==========================================
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+    println!("Starting Don Framework with Custom RBAC...");
+
+    // Attach protected routes
+    let custom_routes = Router::new()
+        .route("/manager/dashboard", don_core::axum::routing::get(manager_dashboard))
+        .route("/editor/dashboard", don_core::axum::routing::get(editor_dashboard));
+
+    DonServer::new()
+        .port(8080)
+        .with_routes(User::get_auth_routes())
+        .with_routes(custom_routes)
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+# Test the RBAC System
+Run your server (cargo run) and open a new terminal.
+## 1. Create a Manager User:
+Notice how we pass "role": "manager" in the dynamic JSON payload.
+```curl -X POST http://localhost:8080/auth/signup \
+     -H "Content-Type: application/json" \
+     -d '{"email": "manager@test.com", "password": "123", "role": "manager"}'
+```
+## 2. Login as Manager (Get the Token):
+```
+curl -X POST http://localhost:8080/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email": "manager@test.com", "password": "123"}'
+
+```
+(Copy the JWT token from the response. Ensure no spaces are copied!)
+## 3. Success Test (Manager accessing Manager Route):
+```
+curl -X GET http://localhost:8080/manager/dashboard \
+     -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+Output: Welcome Manager! You have access to the financial reports. 
+## 4. Hacker Test (Manager accessing Editor Route):
+```
+curl -X GET http://localhost:8080/editor/dashboard \
+     -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+Output: Access Denied: Route requires 'editor' role! Your role is 'manager'. 
+if there is any isseu in this copy paste token so please run this command to check everythign is ok:
+## Step 1:
+```
+curl -X POST http://localhost:8080/auth/signup \
+     -H "Content-Type: application/json" \
+     -d '{"email": "manager99@test.com", "password": "123", "role": "manager"}'
+```
+## Step 2: Login and auto save token:
+```
+TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email": "manager99@test.com", "password": "123"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+```
+## Step 3: call the dashboard :
+```
+curl -X GET http://localhost:8080/manager/dashboard \
+     -H "Authorization: Bearer $TOKEN"
+```
+Welcome Manager! You have access to the financial reports.
+
+
+##  How It Works (Under the Hood)
 The Don Framework is built on the principles of **Procedural Macros (Meta-Programming)** and the **Active Record Pattern**.
 
 Instead of manually writing repetitive SQL queries, CRUD handlers, and route definitions for every database table, Don Framework leverages Rust's `proc-macro` system to analyze your structs at compile time. It automatically generates the required SQL operations, Axum route handlers, and database bindings, significantly reducing boilerplate while preserving Rust's type safety and performance.
