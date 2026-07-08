@@ -1,48 +1,27 @@
 // example_app/src/main.rs
 
-use don_core::{DonServer, axum::Router};
-// NAYA: DonGuard import kiya
-use don_macros::{DonAuth, DonGuard}; 
+use don_core::{DonServer, axum::Router, DonAdmin};
+use don_core::upload::get_upload_routes; 
+use don_macros::DonAuth;
 
 #[derive(DonAuth)]
 pub struct User { pub email: String }
 
-// ==========================================
-// JADOO: CUSTOM ROLE GUARDS (IAM)
-// ==========================================
-
-// 1. Manager Guard banaya
-#[derive(DonGuard)]
-#[don_role = "manager"]
-pub struct ManagerGuard;
-
-// 2. Editor Guard banaya
-#[derive(DonGuard)]
-#[don_role = "editor"]
-pub struct EditorGuard;
-
-// ==========================================
-// PROTECTED ROUTES
-// ==========================================
-
-// Yeh route sirf Manager khol sakta hai
-async fn manager_dashboard(_guard: ManagerGuard) -> &'static str {
-    "Welcome Manager! You have access to the financial reports. 📊"
-}
-
-// Yeh route sirf Editor khol sakta hai
-async fn editor_dashboard(_guard: EditorGuard) -> &'static str {
-    "Welcome Editor! You can write and edit articles. 📝"
+async fn admin_dashboard(_admin: DonAdmin) -> &'static str {
+    "Welcome to the Secure Dashboard! "
 }
 
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    println!("Starting Don Framework with Custom RBAC...");
+    println!("Starting Don Framework with File Uploads...");
 
     let custom_routes = Router::new()
-        .route("/manager/dashboard", don_core::axum::routing::get(manager_dashboard))
-        .route("/editor/dashboard", don_core::axum::routing::get(editor_dashboard));
+        .route("/admin/dashboard", don_core::axum::routing::get(admin_dashboard))
+        // ==========================================
+        // JADOO: 1-Line File Upload API!
+        // ==========================================
+        .nest("/api/upload", get_upload_routes());
 
     DonServer::new()
         .port(8080)

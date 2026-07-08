@@ -12,7 +12,7 @@ use crate::server::AppState;
 
 /// ==========================================
 /// 1. ONE-TO-MANY (1-to-N)
-/// Example: Ek User ke boht saare Products. (Returns a List/Array)
+/// 
 /// ==========================================
 pub fn has_many_route<T>(
     route_path: &str,
@@ -37,7 +37,7 @@ where
 
 /// ==========================================
 /// 2. ONE-TO-ONE (1-to-1) & MANY-TO-ONE (N-to-1)
-/// Example: Ek User ka 1 Profile, ya Ek Product ka 1 User. (Returns a Single Object)
+/// 
 /// ==========================================
 pub fn has_one_route<T>(
     route_path: &str,

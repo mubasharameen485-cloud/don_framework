@@ -42,11 +42,11 @@ pub struct AuthResponse {
     pub user_data: Option<Value>,
 }
 
-// THE FIX: Claims ko public rakha hai taake Macro isay use kar sake
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Claims {
     pub sub: String,
-    pub role: String, // NAYA: Har user ka apna role hoga!
+    pub role: String, 
     pub exp: usize,
 }
 
@@ -106,7 +106,7 @@ async fn fixed_login_handler(
     let (role, final_email, user_metadata) = if payload.email == super_email && payload.password == super_pass {
         ("admin".to_string(), super_email, None)
     } else {
-        // NAYA: Ab hum database se 'role' ka column bhi nikal rahe hain!
+        
         let row = sqlx::query("SELECT password, metadata, role FROM users WHERE email = $1")
             .bind(&payload.email)
             .fetch_optional(&state.db)
@@ -117,7 +117,7 @@ async fn fixed_login_handler(
         let stored_hash: String = row.try_get("password").unwrap();
         let metadata: Option<Value> = row.try_get("metadata").unwrap_or(None);
         
-        // Agar database mein role nahi diya toh default "user" rakh do
+        
         let db_role: String = row.try_get("role").unwrap_or_else(|_| "user".to_string());
 
         let parsed_hash = PasswordHash::new(&stored_hash).unwrap();

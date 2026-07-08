@@ -5,13 +5,12 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::env;
 use tokio::net::TcpListener;
 use tracing::info;
-
+use tower_http::services::ServeDir; 
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
 }
-
 
 pub struct DonServer {
     port: u16,
@@ -19,35 +18,29 @@ pub struct DonServer {
 }
 
 impl DonServer {
-    
     pub fn new() -> Self {
         DonServer {
-            port: 3000, 
+            port: 3000,
             router: Router::new(),
         }
     }
 
-    
     pub fn port(mut self, port: u16) -> Self {
         self.port = port;
         self
     }
 
-    
     pub fn with_routes(mut self, routes: Router<AppState>) -> Self {
         self.router = self.router.merge(routes);
         self
     }
 
-    
     pub async fn start(self) -> Result<(), Box<dyn std::error::Error>> {
-        
         dotenvy::dotenv().ok();
         tracing_subscriber::fmt().init();
 
         info!("Starting Don Framework Engine...");
 
-        
         let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is missing in .env");
         let pool = PgPoolOptions::new()
             .max_connections(5)
@@ -56,10 +49,11 @@ impl DonServer {
 
         let state = AppState { db: pool };
 
-        
-        let app = self.router.with_state(state);
+        // JADOO: Framework khud-bakhud '/uploads' URL par 'uploads' folder dikhayega!
+        let app = self.router
+            .nest_service("/uploads", ServeDir::new("uploads"))
+            .with_state(state);
 
-        
         let addr = format!("0.0.0.0:{}", self.port);
         let listener = TcpListener::bind(&addr).await?;
         
