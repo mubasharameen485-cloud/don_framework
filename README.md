@@ -10,7 +10,7 @@ Building web APIs in Rust is incredibly fast and safe, but it often requires wri
 
 
 
-## 🚀 Features
+## Features
 - **Zero Boilerplate:** Write a struct, get a full API.
 - **Auto-Auth:** Instant `/auth/signup` and `/auth/login` routes with Argon2 and JWT.
 - **Dynamic Metadata:** Pass any extra JSON fields during signup, and they are safely stored in a Postgres `JSONB` column.
@@ -76,7 +76,7 @@ sqlx migrate add init_users
 sqlx migrate run
 ```
 
-🔐 2. Authentication Made Easy
+## 2. Authentication Made Easy
 
 With Don Framework, you don't need to write complex Axum handlers for
 authentication. Just define your User struct!
@@ -109,7 +109,7 @@ Run your server:
 **cargo run**
 ```
 ```
-🧪 Test the Auth API
+Test the Auth API
 
 1. Signup (With dynamic extra fields!) You can send any extra fields (like age,
 city), and Don Framework will automatically save them in the metadata JSONB
@@ -130,7 +130,7 @@ curl -X POST http://localhost:8080/auth/login \
 
 ```
 
-## 🛡️ 3. Route Protection & Admin Guards
+##  3. Route Protection & Admin Guards
 
 Don Framework provides a built-in, zero-configuration security guard (`DonAdmin`) to protect your sensitive routes. Only users with the `admin` role (like the Superuser defined in your `.env`) can access these endpoints.
 
@@ -723,12 +723,69 @@ curl -X GET http://localhost:8080/manager/dashboard \
 Welcome Manager! You have access to the financial reports.
 
 
+##  9. 1-Line File & Image Uploads
+
+Handling multipart form data, generating unique filenames, and serving static files (like images) to the browser can take hundreds of lines of code in Rust.
+
+**Don Framework** reduces this to exactly **1 line of code**. It automatically handles file streams, saves them to an `uploads/` directory with unique UUIDs, and serves them statically so your frontend can access them instantly.
+
+### The Code (`src/main.rs`)
+
+Here is a complete, runnable example showing how to enable file uploads in your application:
+
+```rust
+use don_core::{DonServer, axum::Router};
+use don_core::upload::get_upload_routes;
+
+#[tokio::main]
+async fn main() {
+    // Load environment variables (DATABASE_URL is required to start the server)
+    dotenvy::dotenv().ok();
+    println!("Starting Don Framework with File Uploads...");
+
+    // 1. Define your API routes
+    let api_routes = Router::new()
+        // ✨ THE MAGIC: 1-Line File Upload API!
+        .nest("/api/upload", get_upload_routes());
+
+    // 2. Start the Server
+    // The framework will automatically serve the uploaded files at http://localhost:8080/uploads/...
+    DonServer::new()
+        .port(8080)
+        .with_routes(api_routes)
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+## Test the File Upload API
+Run your server (cargo run) and open a new terminal.
+
+## 1. Create a dummy test file:
+```
+echo "Hello Don Framework, this is my test file!" > test_image.txt
+```
+## 2. Upload the file using cURL (Multipart Form Data):
+```
+curl -X POST http://localhost:8080/api/upload \
+     -F "file=@test_image.txt"
+```
+Output:
+```
+{
+  "message": "Files uploaded successfully!",
+  "success": true,
+  "urls": [
+    "/uploads/38e9e58f-d63a-41e6-8454-ec8083fc31cd.txt"
+  ]
+}
+```
 ##  How It Works (Under the Hood)
 The Don Framework is built on the principles of **Procedural Macros (Meta-Programming)** and the **Active Record Pattern**.
 
 Instead of manually writing repetitive SQL queries, CRUD handlers, and route definitions for every database table, Don Framework leverages Rust's `proc-macro` system to analyze your structs at compile time. It automatically generates the required SQL operations, Axum route handlers, and database bindings, significantly reducing boilerplate while preserving Rust's type safety and performance.
 
-### 🔐 Dynamic Authentication Metadata
+###  Dynamic Authentication Metadata
 
 For authentication, Don Framework supports a **schema-less dynamic payload** approach.
 
