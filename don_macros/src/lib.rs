@@ -255,3 +255,27 @@ pub fn don_guard_derive(input: TokenStream) -> TokenStream {
 
     TokenStream::from(expanded)
 }
+
+// don_macros/src/lib.rs (Aakhir mein paste karo)
+
+// ==========================================
+// 4. DON SOCKET MACRO (REAL-TIME MAGIC)
+// ==========================================
+#[proc_macro_derive(DonSocket)]
+pub fn don_socket_derive(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as DeriveInput);
+    let struct_name = &ast.ident;
+
+    let expanded = quote! {
+        impl #struct_name {
+            /// Automatically generated function to return the WebSocket Router
+            pub fn get_ws_routes() -> don_core::axum::Router<don_core::server::AppState> {
+                don_core::axum::Router::new()
+                    // Yeh route automatically don_core ke websocket handler se connect ho jayega
+                    .route("/ws", don_core::axum::routing::get(don_core::websocket::ws_handler))
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}

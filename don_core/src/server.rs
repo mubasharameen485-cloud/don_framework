@@ -5,11 +5,14 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::env;
 use tokio::net::TcpListener;
 use tracing::info;
-use tower_http::services::ServeDir; 
+use tower_http::services::ServeDir;
+use tokio::sync::broadcast; // NAYA: Broadcast channel import kiya
 
+// NAYA: AppState mein 'tx' (Transmitter) add kar diya taake WebSockets use kar sakein
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
+    pub tx: broadcast::Sender<String>, 
 }
 
 pub struct DonServer {
@@ -47,9 +50,12 @@ impl DonServer {
             .connect(&db_url)
             .await?;
 
-        let state = AppState { db: pool };
+        // NAYA JADOO: Server start hote hi Broadcast Channel bana diya (Capacity 100)
+        let (tx, _rx) = broadcast::channel::<String>(100);
 
-        // JADOO: Framework khud-bakhud '/uploads' URL par 'uploads' folder dikhayega!
+        // State mein DB aur Channel dono daal diye
+        let state = AppState { db: pool, tx };
+
         let app = self.router
             .nest_service("/uploads", ServeDir::new("uploads"))
             .with_state(state);

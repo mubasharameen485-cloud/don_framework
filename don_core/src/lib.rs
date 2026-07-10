@@ -5,7 +5,8 @@ pub mod auth;
 pub mod guard;
 pub mod traits;
 pub mod relations;
-pub mod upload; 
+pub mod upload;
+pub mod websocket; // NAYA: WebSocket module add kiya
 
 pub use server::{DonServer, AppState};
 pub use guard::DonAdmin;
