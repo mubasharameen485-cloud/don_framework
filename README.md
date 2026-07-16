@@ -51,8 +51,9 @@ JWT_SECRET=your_super_secret_jwt_key_12345
 SUPERUSER_EMAIL=admin@don.com
 SUPERUSER_PASSWORD=supersecret
 ```
-```
 Setup your PostgreSQL Database:
+```
+
 
 sqlx database create
 sqlx migrate add init_users
@@ -68,10 +69,7 @@ CREATE TABLE users (
     metadata JSONB DEFAULT '{}'
 );
 ```
-```bash
-sqlx database create
-sqlx migrate add init_users
-```
+
 ```bash
 sqlx migrate run
 ```
@@ -83,6 +81,7 @@ authentication. Just define your User struct!
 ```
 In your src/main.rs:
 **main.rs**
+```
 use don_core::DonServer;
 use don_macros::DonAuth;
 
@@ -129,6 +128,18 @@ curl -X POST http://localhost:8080/auth/login \
 ---
 
 ```
+###  Under the Hood: How `DonAuth` Works
+
+You might be wondering: *"Why is there only an `email` field in the `User` struct? Where is the password and ID? And what exactly is `DonServer` doing?"*
+
+Here is the magic explained:
+
+1. **`#[derive(DonAuth)]`:** This is a Rust Procedural Macro. When the compiler sees this attribute, it automatically generates the `/auth/signup` and `/auth/login` Axum handlers and attaches them to your `User` struct. You don't have to write any routing logic.
+2. **Where is the Password?** We intentionally omit the `password` field from the struct for security and abstraction. The framework's internal payload parser catches the password directly from the JSON request, hashes it using **Argon2**, and stores it in the database. You never have to handle raw passwords in your application code.
+3. **Where is the ID?** The `id` is handled entirely by PostgreSQL (`SERIAL PRIMARY KEY`). The framework abstracts this away so you don't have to manage auto-incrementing integers.
+4. **Dynamic Metadata:** If you add extra fields to your JSON request (like `age` or `city`), the framework catches them and safely stores them in a Postgres `JSONB` column called `metadata`.
+5. **`DonServer`:** This is a powerful wrapper. Instead of manually loading `.env` files, setting up `sqlx::PgPool` connections, and binding `tokio::net::TcpListener`, `DonServer` encapsulates all of this setup. You just call `.start()`, and the framework handles the heavy lifting!
+
 
 ##  3. Route Protection & Admin Guards
 
