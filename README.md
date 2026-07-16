@@ -79,15 +79,16 @@ sqlx migrate run
 With Don Framework, you don't need to write complex Axum handlers for
 authentication. Just define your User struct!
 ```
+
 In your src/main.rs:
 **main.rs**
-```
+
 use don_core::DonServer;
 use don_macros::DonAuth;
 
 // 1. Define your Auth Model
 // This automatically generates /auth/signup and /auth/login routes!
-#[derive(DonAuth)]
+ #[derive(DonAuth)]
 pub struct User {
     pub email: String,
 }
