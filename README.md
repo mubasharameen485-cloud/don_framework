@@ -792,6 +792,115 @@ Output:
   ]
 }
 ```
+
+##  11. 100% Dynamic Authentication (Schema-less JSONB)
+
+Most frameworks force you to use `email` or `username` for authentication. **Don Framework** gives you ultimate flexibility. You can use ANY field (e.g., `phone_number`, `cnic`, `school_id`) as your primary login key!
+
+Furthermore, you don't need to define every single user attribute in your database schema. Any extra fields sent during signup are automatically caught and stored in a PostgreSQL `JSONB` column called `metadata`.
+
+### 1. The Database Migration
+Your `users` table only needs the primary auth key (e.g., `school`), the `password`, and the `metadata` column.
+firstly setup:
+```
+sqlx database drop -y
+sqlx database create
+sqlx migrate add flexible_auth_table
+```
+
+```sql
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    school VARCHAR(255) UNIQUE NOT NULL, -- Your Custom Auth Key
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) DEFAULT 'user',
+    metadata JSONB DEFAULT '{}'          -- All extra fields go here!
+);
+
+```
+also migrate
+```
+sqlx migrate run
+```
+2. The Code (src/main.rs)
+Simply tell the DonServer which key to use for authentication via .auth_key()
+```rust
+
+
+use don_core::DonServer;
+use don_macros::DonAuth;
+// The struct acts as an anchor for the macro. 
+// The actual auth key is defined in the server builder below.
+
+#[derive(DonAuth)]
+pub struct User {
+    pub email: String,
+}
+
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+    println!("Starting Don Framework with Custom Auth Key...");
+
+    DonServer::new()
+        .port(8080)
+        //THE MAGIC: Tell the framework to use 'school' for login!
+        .auth_key("school") 
+        .with_routes(User::get_auth_routes())
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+## Test the Dynamic Auth API
+## 1. Signup (With arbitrary extra fields):
+Notice how we send username, email, age, and city. The framework extracts school and password, and safely dumps the rest into the metadata JSONB column!
+
+```
+curl -X POST http://localhost:8080/auth/signup \
+     -H "Content-Type: application/json" \
+     -d '{
+           "school": "Harvard", 
+           "password": "secure123", 
+           "username": "cool_dev", 
+           "email": "dev@test.com", 
+           "age": 22, 
+           "city": "Lahore"
+         }'
+```
+## 2. Login (Using the custom Auth Key):
+You now log in using school instead of email! The API returns your JWT token along with all your stored metadata.
+```
+curl -X POST http://localhost:8080/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"school": "Harvard", "password": "secure123"}'
+```
+### 🧠 Under the Hood: The Magic of `.auth_key()` and JSONB
+
+**1. What is the purpose of `struct User { pub email: String }`?**
+Currently, this struct acts merely as an **"Anchor"** for the `#[derive(DonAuth)]` macro. The macro doesn't actually read the fields inside it! It simply uses the struct's name to generate and attach the `/auth/signup` and `/auth/login` routes. In future versions, we might remove the need for this struct entirely, but for now, it serves as the attachment point.
+
+**2. How does `.auth_key("school")` work?**
+When you call `DonServer::new().auth_key("school")`, the framework saves the string `"school"` into the server's **Global State (`AppState`)** (in RAM) right when the server starts.
+
+**3. The JSONB Metadata Magic:**
+When a user sends a Signup JSON payload like this:
+`{"username": "cool", "email": "a@a.com", "school": "donlee", "password": "123", "city": "Lahore"}`
+
+Here is exactly what the framework does behind the scenes:
+1. It asks the `AppState`: *"What is the primary auth key?"* It gets the answer: `"school"`.
+2. It extracts `"school": "donlee"` and `"password": "123"` from the JSON payload.
+3. It securely hashes the password using **Argon2**.
+4. It packs all the remaining JSON fields (`username`, `email`, `city`) into a single box and labels it `metadata`.
+5. Finally, it executes the SQL query: `INSERT INTO users (school, password, metadata) VALUES (...)`.
+
+This is exactly why your database migration only needs the `school`, `password`, and `metadata` columns. The framework handles the rest dynamically!
+
+
+
+
+
+
 ##  How It Works (Under the Hood)
 The Don Framework is built on the principles of **Procedural Macros (Meta-Programming)** and the **Active Record Pattern**.
 
