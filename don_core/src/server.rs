@@ -7,18 +7,20 @@ use tokio::net::TcpListener;
 use tracing::info;
 use tower_http::services::ServeDir;
 use tokio::sync::broadcast;
+// NAYA: CORS import kiya
+use tower_http::cors::{Any, CorsLayer};
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
     pub tx: broadcast::Sender<String>, 
-    pub auth_key: String, // NAYA: Login ke liye konsi field use karni hai?
+    pub auth_key: String,
 }
 
 pub struct DonServer {
     port: u16,
     router: Router<AppState>,
-    auth_key: String, // NAYA
+    auth_key: String,
 }
 
 impl DonServer {
@@ -26,7 +28,7 @@ impl DonServer {
         DonServer {
             port: 3000,
             router: Router::new(),
-            auth_key: "email".to_string(), // Default email rahega
+            auth_key: "email".to_string(),
         }
     }
 
@@ -35,7 +37,6 @@ impl DonServer {
         self
     }
 
-    // JADOO: User yahan batayega ke login kis field se karna hai!
     pub fn auth_key(mut self, key: &str) -> Self {
         self.auth_key = key.to_string();
         self
@@ -60,14 +61,22 @@ impl DonServer {
 
         let (tx, _rx) = broadcast::channel::<String>(100);
 
-        // State mein auth_key save kar di
         let state = AppState { 
             db: pool, 
             tx, 
             auth_key: self.auth_key.clone() 
         };
 
+        // ==========================================
+        // JADOO: CORS LAYER (Browser Errors Khatam!)
+        // ==========================================
+        let cors = CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any);
+
         let app = self.router
+            .layer(cors) // CORS yahan laga diya!
             .nest_service("/uploads", ServeDir::new("uploads"))
             .with_state(state);
 
