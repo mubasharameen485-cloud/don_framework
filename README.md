@@ -852,6 +852,25 @@ async fn main() {
         .expect("Server crashed!");
 }
 ```
+
+and also change in database as it:
+at this line:
+```
+school VARCHAR(255) UNIQUE NOT NULL, -- Your Custom Auth Key
+```
+at:
+```
+school VARCHAR(255) UNIQUE NOT NULL, 
+-------------------------------------------------
+email VARCHAR(255) UNIQUE NOT NULL, 
+---------------------------------------------
+color VARCHAR(255) UNIQUE NOT NULL, 
+etc
+```
+
+
+
+
 ## Test the Dynamic Auth API
 ## 1. Signup (With arbitrary extra fields):
 Notice how we send username, email, age, and city. The framework extracts school and password, and safely dumps the rest into the metadata JSONB column!
@@ -875,6 +894,44 @@ curl -X POST http://localhost:8080/auth/login \
      -H "Content-Type: application/json" \
      -d '{"school": "Harvard", "password": "secure123"}'
 ```
+
+### How to use:
+in this you only enter word you want to set a primary field in this===
+
+```
+.auth_key("school")  
+```
+as:
+```
+.auth_key("email")
+----------------
+.auth_key("age")
+----------------
+.auth_key("color")
+etc
+```
+```
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+    println!("Starting Don Framework with Custom Auth Key...");
+
+    DonServer::new()
+        .port(8080)
+        //at this line=====
+//---------------------------
+        .auth_key("school")
+
+//--------------------------
+        .with_routes(User::get_auth_routes())
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+
+
+
 ### 🧠 Under the Hood: The Magic of `.auth_key()` and JSONB
 
 **1. What is the purpose of `struct User { pub email: String }`?**
