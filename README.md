@@ -853,20 +853,8 @@ async fn main() {
 }
 ```
 
-and also change in database as it:
-at this line:
-```
-school VARCHAR(255) UNIQUE NOT NULL, -- Your Custom Auth Key
-```
-at:
-```
-school VARCHAR(255) UNIQUE NOT NULL, 
--------------------------------------------------
-email VARCHAR(255) UNIQUE NOT NULL, 
----------------------------------------------
-color VARCHAR(255) UNIQUE NOT NULL, 
-etc
-```
+
+
 
 
 
@@ -929,8 +917,21 @@ async fn main() {
         .expect("Server crashed!");
 }
 ```
-
-
+```
+and also change in database as it:
+at this line:
+```
+school VARCHAR(255) UNIQUE NOT NULL, -- Your Custom Auth Key
+```
+at:
+```
+school VARCHAR(255) UNIQUE NOT NULL, 
+-------------------------------------------------
+email VARCHAR(255) UNIQUE NOT NULL, 
+---------------------------------------------
+color VARCHAR(255) UNIQUE NOT NULL, 
+etc
+```
 
 ### 🧠 Under the Hood: The Magic of `.auth_key()` and JSONB
 
