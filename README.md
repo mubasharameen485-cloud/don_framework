@@ -48,8 +48,7 @@ Create a .env file in the root of your project:
 ```env
 DATABASE_URL=postgres://postgres:password@localhost:5432/don_app_db
 JWT_SECRET=your_super_secret_jwt_key_12345
-SUPERUSER_EMAIL=admin@don.com
-SUPERUSER_PASSWORD=supersecret
+
 ```
 Setup your PostgreSQL Database:
 ```
@@ -64,9 +63,11 @@ In the generated .sql migration file, add the following table:
 ```.sql
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    metadata JSONB DEFAULT '{}'
+    username VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    age INT NOT NULL,
+    city VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL
 );
 ```
 
@@ -75,57 +76,129 @@ sqlx migrate run
 ```
 
 ## 2. Authentication Made Easy
+## 12. Implementing Validation & Auth Hooks
 
 With Don Framework, you don't need to write complex Axum handlers for
 authentication. Just define your User struct!
-```
 
-In your src/main.rs:
-**main.rs**
+Let's put Declarative Validation (`#[validate]`) and Lifecycle Hooks (`DonAuthHooks`) together in a real-world scenario. 
 
-use don_core::DonServer;
+In this example, we will:
+1. Use `#[validate]` to ensure the username is at least 3 characters and the user is 18+.
+2. Use `before_signup` to auto-capitalize the user's city.
+3. Use `before_login` to block a specific malicious username from attempting to log in.
+
+### The Code (`src/main.rs`)
+
+
+```rust
+use don_core::{DonServer, axum::Router};
+use don_core::traits::DonAuthHooks;
+use validator::Validate; 
 use don_macros::DonAuth;
+use serde::{Deserialize, Serialize};
 
-// 1. Define your Auth Model
-// This automatically generates /auth/signup and /auth/login routes!
- #[derive(DonAuth)]
+// ==========================================
+// 1. STRICT AUTH MODEL WITH VALIDATION
+// ==========================================
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonAuth, Validate)]
+#[don_auth_key = "username"] 
+#[don_validate] // Tells the framework to run validation before signup
 pub struct User {
-    pub email: String,
+    pub id: i32,
+    
+    #[validate(length(min = 3, message = "Username must be at least 3 characters!"))]
+    pub username: String,
+    
+    #[validate(length(min = 6, message = "Password must be at least 6 characters!"))]
+    pub password: String,
+    
+    #[validate(range(min = 18, message = "You must be 18+ to signup!"))]
+    pub age: i32,
+    
+    pub city: String,
+    pub role: String,
 }
 
+// ==========================================
+// 2. AUTH LIFECYCLE HOOKS
+// ==========================================
+impl DonAuthHooks for User {
+    
+    // Runs BEFORE the user is saved to the database
+    async fn before_signup(&mut self) -> Result<(), String> {
+        // Data Modification: Auto-format the city name to uppercase
+        self.city = self.city.trim().to_uppercase();
+        Ok(())
+    }
+
+    // Runs BEFORE the login query is executed
+    async fn before_login(primary_key: &str) -> Result<(), String> {
+        // Security Check: Block a specific username (e.g., a known hacker or banned user)
+        if primary_key == "banned_hacker" {
+            return Err("Security Alert: Your account has been suspended!".to_string());
+        }
+        Ok(())
+    }
+}
+
+// ==========================================
+// 3. START THE SERVER
+// ==========================================
 #[tokio::main]
 async fn main() {
-    // 2. Start the Server
+    dotenvy::dotenv().ok();
+    println!("Starting Don Framework with Validation & Hooks...");
+
     DonServer::new()
         .port(8080)
-        .with_routes(User::get_auth_routes()) // Inject auto-generated auth routes
+        .auth_key("username") // Set primary login key to 'username'
+        .with_routes(User::get_auth_routes())
         .start()
         .await
         .expect("Server crashed!");
 }
-```
-Run your server:
-```
-**cargo run**
-```
-```
-Test the Auth API
 
-1. Signup (With dynamic extra fields!) You can send any extra fields (like age,
-city), and Don Framework will automatically save them in the metadata JSONB
-column!
+```
+run the server:
+```
+cargo run
+```
+### Test the Validation & Hooks API
+Run your server (cargo run) and open a new terminal to run these tests.
+#### 1. Test Declarative Validation Failure (Age < 18):
+The framework will reject this request before it even reaches the before_signup hook.
 
+```
 curl -X POST http://localhost:8080/auth/signup \
      -H "Content-Type: application/json" \
-     -d '{"email": "john@test.com", "password": "password123", "age": 30, "city": "New York"}'
-
-2. Login (Get your JWT Token)
-
+     -d '{"id": 0, "username": "ali123", "password": "secure123", "age": 15, "city": "Lahore", "role": "user"}'
+```
+Output: Validation Failed: age: You must be 18+ to signup! 
+#### 2. Test Successful Signup & Data Modification:
+Watch how the city "karachi" is automatically converted to "KARACHI" in the database.
+```
+curl -X POST http://localhost:8080/auth/signup \
+     -H "Content-Type: application/json" \
+     -d '{"id": 0, "username": "good_user", "password": "secure123", "age": 25, "city": "karachi", "role": "user"}'
+```
+Output: {"message":"Account created successfully!","success":true}
+#### 3. Test Login Blocker Hook (Hacker Attempt):
+Try to log in with the banned username. The before_login hook will intercept and block it.
+```
 curl -X POST http://localhost:8080/auth/login \
      -H "Content-Type: application/json" \
-     -d '{"email": "john@test.com", "password": "password123"}'
-
+     -d '{"username": "banned_hacker", "password": "anypassword"}'
 ```
+Output: Security Alert: Your account has been suspended!
+#### 4. Test Successful Login:
+```
+curl -X POST http://localhost:8080/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"username": "good_user", "password": "secure123"}'
+```
+Output: Returns the JWT token successfully!
+
 ---
 
 
@@ -161,6 +234,8 @@ Provided by the validator crate. It enables declarative validation, allowing you
 ### 2. #[don_auth_key = "username"]
 By default, most frameworks force you to use email for authentication. The Don Framework is flexible.
 When you attach #[don_auth_key = "username"] (or "phone", "cnic", etc.) to your struct, you are telling the DonAuth macro: "Do not look for an email. Use this specific field as the primary login ID." The framework will dynamically adjust the SQL queries and JSON payloads to expect this key during login and signup.
+### Note:
+see point 2 full detailed on next .
 ### 3. #[don_validate]
 This is a custom flag for the DonAuth macro. When you add #[don_validate] above your struct, you are instructing the framework's auto-generated signup handler to pause and run the validation rules before touching the database. If any field fails the validation (e.g., age is less than 18), it instantly aborts the process and returns a 400 Bad Request with the exact error messages.
 ### 4. DonAuthHooks (The Lifecycle Interceptor)
@@ -212,9 +287,113 @@ async fn before_signup(&mut self). The &mut self means you have a mutable refere
 Because it is mutable, you can alter the data before it saves. You access a field using self.field_name and change it like this: self.city = self.city.trim().to_uppercase();.
 #### Complex Logic:
 You can write if-else statements, make external API calls, or check the database. If something is wrong, simply return an error: return Err("Custom Error".to_string());.
+------------------------------------------------------
+#### IN CODE:
+##### How to use self in before_signup
+Inside the before_signup hook, you have mutable access to your entire struct using &mut self. This allows you to modify, format, or calculate fields before they are saved to the database.
+The syntax is simply: self.field_name = your_logic;
+Examples of Data Modification:
+```
+impl DonAuthHooks for User {
+    async fn before_signup(&mut self) -> Result<(), String> {
+        
+        // 1. CITY: Always capitalize the first letter (e.g., "lahore" -> "Lahore")
+        if let Some(first_char) = self.city.chars().next() {
+            self.city = format!("{}{}", first_char.to_uppercase(), &self.city[1..]);
+        }
+
+        // 2. ROLE: Force the role to always be lowercase and remove extra spaces
+        self.role = self.role.trim().to_lowercase();
+
+        // 3. USERNAME: Ensure the username has no spaces
+        self.username = self.username.replace(" ", "_");
+
+        // 4. AGE LOGIC: If age is exactly 18, auto-assign a specific role
+        if self.age == 18 {
+            self.role = "new_adult".to_string();
+        }
+
+        // 5. PASSWORD: Trim accidental spaces before the framework hashes it
+        self.password = self.password.trim().to_string();
+
+        Ok(())
+    }
+}
+```
+If you do not need any custom data modification, you can simply leave the function empty. The framework will just proceed to save the data:
+
+```
+impl DonAuthHooks for User {
+    async fn before_signup(&mut self) -> Result<(), String> {
+        Ok(()) // Do nothing, just proceed
+    }
+}
+```
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### How to use before_login:
 #### Notice the signature:
 async fn before_login(_primary_key: &str). Here, you don't have self because the user hasn't logged in yet! You only have their login ID (e.g., username or email). You can use this to block hackers. For example, if a user has failed to login 5 times, you can check their _primary_key against a Redis cache and return an error to block them.
+
+#### IN CODE:
+##### How to use primary_key in before_login
+In the before_login hook, you do not have access to self. Why? Because the user has not been authenticated yet! The framework only passes the primary_key (which is the email, username, or whatever you set in .auth_key()).
+You can use this primary_key to run security checks before the framework even touches the database.
+The syntax is simply: if primary_key == logic { return Err(...) }
+Examples of Pre-Login Security Logic:
+```
+impl DonAuthHooks for User {
+    async fn before_login(primary_key: &str) -> Result<(), String> {
+        
+        // 1. Block a specific banned user
+        if primary_key == "banned_hacker" {
+            return Err("Security Alert: Your account has been suspended!".to_string());
+        }
+
+        // 2. Block temporary or fake email domains
+        if primary_key.ends_with("@tempmail.com") {
+            return Err("Security Alert: Temporary emails are not allowed!".to_string());
+        }
+
+        // 3. Prevent extremely long inputs (Basic DoS Protection)
+        if primary_key.len() > 100 {
+            return Err("Invalid login ID format.".to_string());
+        }
+
+        // 4. Custom Database/Redis Check (Pseudo-code)
+        // if check_redis_for_brute_force(primary_key).await {
+        //     return Err("Too many failed attempts. Try again in 5 minutes.".to_string());
+        // }
+
+        Ok(())
+    }
+}
+```
+If you do not need any custom data modification, you can simply leave the function empty. The framework will just proceed to save the data:
+
+```
+impl DonAuthHooks for User {
+  async fn before_login(primary_key: &str) -> Result<(), String> {
+        Ok(()) // Do nothing, just proceed
+    }
+}
+```
+
+
 ### 3. The Core Difference
 #[validate] is a Bouncer at the door. It only checks IDs (data format). It cannot change your clothes (mutate data).
 DonAuthHooks is the Manager inside the club. It can change things, run complex background checks, and make the final decision.
