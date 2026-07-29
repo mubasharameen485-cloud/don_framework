@@ -18,7 +18,7 @@ Building web APIs in Rust is incredibly fast and safe, but it often requires wri
 - **Admin Guards:** Protect any route with a simple `DonAdmin` extractor.
 
 
-## 🛠️ 1. Quick Setup
+# 1. Quick Setup
 
 Create a new Rust project:
 ```bash
@@ -75,8 +75,8 @@ CREATE TABLE users (
 sqlx migrate run
 ```
 
-## 2. Authentication Made Easy
-## 12. Implementing Validation & Auth Hooks
+# 2. Authentication Made Easy
+### 12. Implementing Validation & Auth Hooks
 
 With Don Framework, you don't need to write complex Axum handlers for
 authentication. Just define your User struct!
@@ -88,7 +88,7 @@ In this example, we will:
 2. Use `before_signup` to auto-capitalize the user's city.
 3. Use `before_login` to block a specific malicious username from attempting to log in.
 
-### The Code (`src/main.rs`)
+#### The Code (`src/main.rs`)
 
 
 ```rust
@@ -164,9 +164,9 @@ run the server:
 ```
 cargo run
 ```
-### Test the Validation & Hooks API
+#### Test the Validation & Hooks API
 Run your server (cargo run) and open a new terminal to run these tests.
-#### 1. Test Declarative Validation Failure (Age < 18):
+##### 1. Test Declarative Validation Failure (Age < 18):
 The framework will reject this request before it even reaches the before_signup hook.
 
 ```
@@ -175,7 +175,7 @@ curl -X POST http://localhost:8080/auth/signup \
      -d '{"id": 0, "username": "ali123", "password": "secure123", "age": 15, "city": "Lahore", "role": "user"}'
 ```
 Output: Validation Failed: age: You must be 18+ to signup! 
-#### 2. Test Successful Signup & Data Modification:
+##### 2. Test Successful Signup & Data Modification:
 Watch how the city "karachi" is automatically converted to "KARACHI" in the database.
 ```
 curl -X POST http://localhost:8080/auth/signup \
@@ -183,7 +183,7 @@ curl -X POST http://localhost:8080/auth/signup \
      -d '{"id": 0, "username": "good_user", "password": "secure123", "age": 25, "city": "karachi", "role": "user"}'
 ```
 Output: {"message":"Account created successfully!","success":true}
-#### 3. Test Login Blocker Hook (Hacker Attempt):
+##### 3. Test Login Blocker Hook (Hacker Attempt):
 Try to log in with the banned username. The before_login hook will intercept and block it.
 ```
 curl -X POST http://localhost:8080/auth/login \
@@ -191,7 +191,7 @@ curl -X POST http://localhost:8080/auth/login \
      -d '{"username": "banned_hacker", "password": "anypassword"}'
 ```
 Output: Security Alert: Your account has been suspended!
-#### 4. Test Successful Login:
+##### 4. Test Successful Login:
 ```
 curl -X POST http://localhost:8080/auth/login \
      -H "Content-Type: application/json" \
@@ -202,7 +202,7 @@ Output: Returns the JWT token successfully!
 ---
 
 
-###  Under the Hood: How `DonAuth` Works
+#####  Under the Hood: How `DonAuth` Works
 
 You might be wondering: *"Why is there only an `email` field in the `User` struct? Where is the password and ID? And what exactly is `DonServer` doing?"*
 
@@ -216,36 +216,36 @@ Here is the magic explained:
 ------------------
 ### Understanding the Magic (Deep Dive into Don Framework)
 When you look at a Don Framework model, it looks incredibly simple. But there is a lot of powerful Rust engineering happening behind the scenes. Let's break down exactly what each line and macro does.
-### 1. The Power of #[derive(...)]
+##### 1. The Power of #[derive(...)]
 ```
 #[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonAuth, Validate)]
 ```
 In Rust, #[derive(...)] is a procedural macro that automatically writes code for your struct at compile-time. Here is what each trait does:
-#### Debug & Clone:
+##### Debug & Clone:
 Standard Rust traits. Debug allows you to print the struct in the terminal for debugging, and Clone allows you to create copies of it in memory.
-#### Serialize & Deserialize:
+##### Serialize & Deserialize:
 Provided by the serde crate. This allows your Rust struct to automatically convert to JSON (when sending responses) and parse from JSON (when receiving API requests).
-#### don_core::sqlx::FromRow:
+##### don_core::sqlx::FromRow:
 This tells SQLx how to map a PostgreSQL database row directly into your Rust struct. No manual mapping is required!
-#### DonAuth:
+##### DonAuth:
 Our custom framework macro. It reads your struct and automatically generates the /auth/signup and /auth/login Axum handlers, complete with Argon2 password hashing and JWT generation.
-#### Validate:
+##### Validate:
 Provided by the validator crate. It enables declarative validation, allowing you to add rules like #[validate(length(min = 3))] directly on your fields.
-### 2. #[don_auth_key = "username"]
+#### 2. #[don_auth_key = "username"]
 By default, most frameworks force you to use email for authentication. The Don Framework is flexible.
 When you attach #[don_auth_key = "username"] (or "phone", "cnic", etc.) to your struct, you are telling the DonAuth macro: "Do not look for an email. Use this specific field as the primary login ID." The framework will dynamically adjust the SQL queries and JSON payloads to expect this key during login and signup.
-### Note:
+##### Note:
 see point 2 full detailed on next .
-### 3. #[don_validate]
+##### 3. #[don_validate]
 This is a custom flag for the DonAuth macro. When you add #[don_validate] above your struct, you are instructing the framework's auto-generated signup handler to pause and run the validation rules before touching the database. If any field fails the validation (e.g., age is less than 18), it instantly aborts the process and returns a 400 Bad Request with the exact error messages.
-### 4. DonAuthHooks (The Lifecycle Interceptor)
+##### 4. DonAuthHooks (The Lifecycle Interceptor)
 Sometimes, declarative validation (like min/max length) isn't enough. You might need complex business logic. That's where DonAuthHooks comes in.
 By implementing this trait, you get access to two powerful lifecycle events:
-#### before_signup(&mut self):
+##### before_signup(&mut self):
 Runs right before the user is saved to the database. You can use this to run complex validations (e.g., checking if an email domain is allowed) or to mutate data (e.g., auto-capitalizing a city name).
-#### before_login(primary_key: &str): 
+##### before_login(primary_key: &str): 
 Runs right before the login query executes. This is highly useful for security. For example, you can check a Redis cache to see if this user has failed 3 login attempts and block them temporarily to prevent Brute-Force attacks.
-### 5. DonGuard (Role-Based Access Control)
+#### 5. DonGuard (Role-Based Access Control)
 ```
 #[derive(DonGuard)]
 #[don_role = "manager"]
@@ -256,36 +256,36 @@ When you define an empty struct and attach this macro, it generates an Axum Extr
 
 -----------------------------------------------------------------------------------
 
-### Declarative Validation vs. Lifecycle Hooks
+#### Declarative Validation vs. Lifecycle Hooks
 In Don Framework, you have two powerful ways to control your data: Declarative Validation (#[validate(...)]) and Lifecycle Hooks (DonAuthHooks). Understanding the difference between them is key to writing clean, enterprise-grade code.
-### 1. Declarative Validation (#[validate(...)])
+##### 1. Declarative Validation (#[validate(...)])
 This is provided by the validator crate. It is used for simple, read-only checks. It ensures the data looks correct before it even reaches your business logic.
-#### length(min = X, max = Y):
+##### length(min = X, max = Y):
 Used for String fields to check character count.
-#### range(min = X, max = Y):
+##### range(min = X, max = Y):
 Used for numeric fields (like i32) to check value limits.
-#### message = "...": 
+##### message = "...": 
 The custom error message sent back to the user if the check fails.
 What else can it do?
 Besides length and range, the validator supports many other rules:
-#### #[validate(email)]:
+##### #[validate(email)]:
 Ensures the string is a valid email format (e.g., test@test.com).
-#### #[validate(url)]:
+##### #[validate(url)]:
 Ensures the string is a valid web link.
-#### #[validate(regex(path = "CUSTOM_REGEX"))]:
+##### #[validate(regex(path = "CUSTOM_REGEX"))]:
 Checks the string against a custom Regular Expression pattern.
-#### #[validate(must_match = "other_field")]:
+##### #[validate(must_match = "other_field")]:
 Ensures two fields match (perfect for "Confirm Password" fields).
-### 2. Lifecycle Hooks (DonAuthHooks)
+#### 2. Lifecycle Hooks (DonAuthHooks)
 While #[validate] is great for checking data, it cannot change the data, and it cannot run complex async tasks (like checking a database). That is where DonAuthHooks comes in.
-#### What does impl mean?
+##### What does impl mean?
 In Rust, impl stands for "implement". Because Rust does not have Classes (like Python or Java), impl is the keyword used to attach functions, logic, or Traits to a struct.
-### How to use before_signup:
-#### Notice the signature:
+##### How to use before_signup:
+##### Notice the signature:
 async fn before_signup(&mut self). The &mut self means you have a mutable reference to the entire struct.
-#### Data Mutation:
+##### Data Mutation:
 Because it is mutable, you can alter the data before it saves. You access a field using self.field_name and change it like this: self.city = self.city.trim().to_uppercase();.
-#### Complex Logic:
+##### Complex Logic:
 You can write if-else statements, make external API calls, or check the database. If something is wrong, simply return an error: return Err("Custom Error".to_string());.
 ------------------------------------------------------
 #### IN CODE:
@@ -330,26 +330,11 @@ impl DonAuthHooks for User {
 }
 ```
  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-### How to use before_login:
-#### Notice the signature:
+#### How to use before_login:
+##### Notice the signature:
 async fn before_login(_primary_key: &str). Here, you don't have self because the user hasn't logged in yet! You only have their login ID (e.g., username or email). You can use this to block hackers. For example, if a user has failed to login 5 times, you can check their _primary_key against a Redis cache and return an error to block them.
 
-#### IN CODE:
+##### IN CODE:
 ##### How to use primary_key in before_login
 In the before_login hook, you do not have access to self. Why? Because the user has not been authenticated yet! The framework only passes the primary_key (which is the email, username, or whatever you set in .auth_key()).
 You can use this primary_key to run security checks before the framework even touches the database.
@@ -394,10 +379,10 @@ impl DonAuthHooks for User {
 ```
 
 
-### 3. The Core Difference
+##### 3. The Core Difference
 #[validate] is a Bouncer at the door. It only checks IDs (data format). It cannot change your clothes (mutate data).
 DonAuthHooks is the Manager inside the club. It can change things, run complex background checks, and make the final decision.
-### 4. How to Bypass Hooks
+##### 4. How to Bypass Hooks
 Because the Don Framework relies heavily on security, it forces you to implement DonAuthHooks (or DonHooks for CRUD) on your models.
 However, if your app is simple and you only want to use #[validate] without any custom data mutation or login blocking, you can simply provide an empty implementation. This satisfies the Rust compiler without adding extra logic:
 
@@ -417,7 +402,7 @@ By doing this, the framework will still run your #[validate] rules, but it will 
 
 
 
-## 3. Route Protection & Admin Guards
+# 3. Route Protection & Admin Guards
 
 Don Framework provides a built-in, zero-configuration security guard (`DonAdmin`) to protect your sensitive routes. Only users with the `admin` role (like the Superuser defined in your `.env`) can access these endpoints.
 
