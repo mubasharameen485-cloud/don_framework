@@ -409,36 +409,198 @@ Don Framework provides a built-in, zero-configuration security guard (`DonAdmin`
 ### Protecting Any Custom Route
 
 You don't need to write complex middleware. Simply add `_admin: DonAdmin` as a parameter to your Axum handler. The framework will automatically intercept the request, verify the JWT token, check the user's role, and block unauthorized access!
+
+##### STEP 1:
+##### setup.env
 ```
+DATABASE_URL=postgres://postgres:password@localhost:5432/don_db
+JWT_SECRET=your_super_secret_jwt_key_12345
+
+# Define your Admin/Superuser credentials here
+SUPERUSER_ID=admin_boss
+SUPERUSER_PASSWORD=supersecret
 ```
-Update your `src/main.rs`:
+
+##### Database setup:
+delete ohers files in migration than  run this in terminal:
+```
+sqlx database drop -y
+sqlx database create
+sqlx migrate add admin_logic_tables
+
+```
+pase this to new .sql file
+```
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) DEFAULT 'user',
+    is_suspended BOOLEAN DEFAULT FALSE 
+);
+```
+run migration
+```
+sqlx migrate run
+```
+##### Step 2 Update your `src/main.rs`:
 
 ```rust
-use don_core::{DonServer, axum::Router, DonAdmin};
-use don_macros::DonAuth;
 
-#[derive(DonAuth)]
+
+use don_core::{
+    DonServer, AppState,DonAuthHooks, DonAdmin, 
+    axum::{Router, extract::{State, Path}, Json, routing::{get, put}}
+};
+use don_macros::DonAuth;
+use serde::{Deserialize, Serialize};
+
+// ==========================================
+// 1. STRICT AUTH MODEL
+// ==========================================
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonAuth)]
+#[don_auth_key = "username"] 
 pub struct User {
-    pub email: String,
+    pub id: i32,
+    pub username: String,
+    pub password: String,
+    pub role: String,
+    pub is_suspended: bool, 
 }
 
-// 1. Create a Protected Route
+//DonAuthHppls is empty if you like than add any logic and function
+impl DonAuthHooks for User {}
+// ==========================================
+// 2. ADMIN LOGIC (CUSTOM HANDLERS)
+// ==========================================
+
+// A. Get All Users (Admin Only)
+async fn get_all_users(
+    _admin: DonAdmin, // 1. Guard: only admin allowed
+    State(state): State<AppState>, // 2. Database access
+) -> Result<Json<Vec<User>>, String> {
+    
+    // Custom SQL Query to fetch all users
+    let users = don_core::sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY id ASC")
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(Json(users))
+}
+
+// B. Suspend a User (Admin Only)
+async fn suspend_user(
+    _admin: DonAdmin, // Guard
+    State(state): State<AppState>, // Database access
+    Path(user_id): Path<i32>, // URL  User ID (e.g., /admin/suspend/5)
+) -> Result<Json<don_core::serde_json::Value>, String> {
+    
+    // Custom SQL Query to update user status
+    don_core::sqlx::query("UPDATE users SET is_suspended = TRUE WHERE id = $1")
+        .bind(user_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(Json(don_core::serde_json::json!({
+        "success": true,
+        "message": format!("User ID {} has been suspended successfully!", user_id)
+    })))
+}
+
+// ==========================================
+// 3. START THE SERVER
+// ==========================================
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+    println!("Starting Don Framework with Admin Logic...");
+
+    // Admin Routes Setup
+    let admin_routes = Router::new()
+        .route("/admin/users", get(get_all_users))
+        .route("/admin/suspend/:id", put(suspend_user)); // PUT request for updating
+
+    DonServer::new()
+        .port(8080)
+        .auth_key("username")
+        .with_routes(User::get_auth_routes())
+        .with_routes(admin_routes) // Inject Admin routes
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+than run :
+```
+cargo run
+```
+##### Step 3: The Final Test (Terminal cURL Commands)
+##### 1. Create a Dummy User (ID 1):
+```
+curl -X POST http://localhost:8080/auth/signup \
+     -H "Content-Type: application/json" \
+     -d '{"id": 0, "username": "bad_guy", "password": "123", "role": "user", "is_suspended": false}'
+```
+##### 2. Login as SUPERUSER (Admin) to get the Token:
+```
+TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"username": "admin_boss", "password": "supersecret"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+```
+##### 3. Admin Logic Test 1: Get All Users
+```
+curl -X GET http://localhost:8080/admin/users \
+     -H "Authorization: Bearer $TOKEN"
+```
+Output: Tumhein return JSON Array [...] where all the user shown.
+#### 4. Admin Logic Test 2: Suspend the User (ID 1)
+```
+curl -X PUT http://localhost:8080/admin/suspend/1 \
+     -H "Authorization: Bearer $TOKEN"
+```
+Output: {"message":"User ID 1 has been suspended successfully!","success":true}
+
+
+---------------------------------------------------
+### Others:
+if you not like to set extra logic in code you simple setup this only admin setup:
+main.rs
+```
+use don_core::{DonServer, axum::Router, DonAdmin,DonAuthHooks};
+use don_macros::DonAuth;
+use serde::{Deserialize, Serialize};
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonAuth)]
+#[don_auth_key = "username"] // Login will be done via 'username'
+pub struct User {
+    pub id: i32,
+    pub username: String,
+    pub password: String,
+    pub role: String,
+}
+impl DonAuthHooks for User {}
+// 2. Create a Protected Route
 // Adding `_admin: DonAdmin` makes this route 100% secure!
 async fn secure_dashboard(_admin: DonAdmin) -> &'static str {
-    "Welcome to the Secure Dashboard! You have Admin access. "
+    "Welcome to the Secure Dashboard! You have Superuser (Admin) access. "
 }
 
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
+    println!("Starting Don Framework...");
 
-    // 2. Define your custom routes
+    // 3. Define your custom routes
     let custom_routes = Router::new()
         .route("/admin/dashboard", don_core::axum::routing::get(secure_dashboard));
 
-    // 3. Start the Server
+    // 4. Start the Server
     DonServer::new()
         .port(8080)
+        .auth_key("username") // Tell the framework to use 'username' for login
         .with_routes(User::get_auth_routes())
         .with_routes(custom_routes) // Inject the protected route
         .start()
@@ -446,30 +608,12 @@ async fn main() {
         .expect("Server crashed!");
 }
 ```
-```
-🧪 Test the Protected Route
 
-1. Try accessing without a token (Hacker attempt):
 
-curl -X GET http://localhost:8080/admin/dashboard
 
-Output: Missing Token! Please login. 🛑
 
-2. Login as the Superuser (Defined in your .env):
 
-curl -X POST http://localhost:8080/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"email": "admin@don.com", "password": "supersecret"}'
-```
-(Copy the token string from the JSON response).
 
-3. Access the route with the Token: Replace YOUR_TOKEN_HERE with the actual
-token you copied.
-
-curl -X GET http://localhost:8080/admin/dashboard \
-     -H "Authorization: Bearer YOUR_TOKEN_HERE"
-
-Output: Welcome to the Secure Dashboard! You have Admin access. 
 
 
 ---
