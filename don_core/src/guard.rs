@@ -6,9 +6,16 @@ use axum::{
     http::{request::Parts, StatusCode},
 };
 use jsonwebtoken::{decode, DecodingKey, Validation};
+use serde::{Deserialize, Serialize}; // NAYA: Serialize/Deserialize import kiya
 use std::env;
-use crate::auth::Claims;
 
+// NAYA JADOO: Claims struct ab yahan mojood hai!
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    pub sub: String,
+    pub role: String,
+    pub exp: usize,
+}
 
 pub struct DonAdmin;
 
@@ -34,19 +41,17 @@ where
         let token = &auth_header[7..];
         let secret = env::var("JWT_SECRET").expect("JWT_SECRET missing in .env");
 
-        
+        // Ab yeh decode is file ke apne Claims struct ko use karega
         let decoded = decode::<Claims>(
             token,
             &DecodingKey::from_secret(secret.as_bytes()),
             &Validation::default(),
         ).map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid or Expired Token!".to_string()))?;
 
-        
         if decoded.claims.role != "admin" {
             return Err((StatusCode::FORBIDDEN, "Access Denied: Superuser (Admin) only!".to_string()));
         }
 
-        
         Ok(DonAdmin)
     }
 }
