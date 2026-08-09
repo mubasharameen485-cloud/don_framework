@@ -609,9 +609,260 @@ async fn main() {
 }
 ```
 
+# RBAC (Role-Based Access Control)
+ setup migration
+```
+
+sqlx database drop -y
+sqlx database create
+
+sqlx migrate add company_rbac_tables
+```
+paste in new sql migration file
+.sql
+```
+-- Users table with Role and Salary
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL, -- manager, editor, finance, user
+    salary INT DEFAULT 0
+);
+
+-- Articles table for the Editor to manage
+CREATE TABLE articles (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    is_published BOOLEAN DEFAULT FALSE
+);
+```
+run migration
+```
+sqlx migrate run
+```
+than paste code in main.rs file
+```
+// example_app/src/main.rs
+
+use don_core::{
+    DonServer, AppState, 
+    axum::{Router, extract::{State, Path}, Json, routing::{get, put, post}}
+};
+use don_core::traits::{DonAuthHooks, DonHooks};
+use validator::Validate;
+use don_macros::{DonAuth, DonGuard, DonModel};
+use serde::{Deserialize, Serialize};
+
+// ==========================================
+// 1. MODELS & VALIDATION
+// ==========================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonAuth, Validate)]
+#[don_auth_key = "username"] 
+#[don_validate]
+pub struct User {
+    pub id: i32,
+    #[validate(length(min = 3, message = "Username must be at least 3 characters"))]
+    pub username: String,
+    #[validate(length(min = 4, message = "Password must be at least 4 characters"))]
+    pub password: String,
+    pub role: String,
+    pub salary: i32,
+}
+
+// Auth Hooks (Signup se pehle check karna)
+impl DonAuthHooks for User {
+    async fn before_signup(&mut self) -> Result<(), String> {
+        // Validation:only these 4 allowed
+        let valid_roles = ["manager", "editor", "finance", "user"];
+        if !valid_roles.contains(&self.role.as_str()) {
+            return Err("Invalid Role! Must be manager, editor, finance, or user.".to_string());
+        }
+        Ok(())
+    }
+    async fn before_login(primary_key: &str) -> Result<(), String> {
+        if primary_key == "hacker" {
+            return Err("Security Alert: You are banned!".to_string());
+        }
+        Ok(())
+    }
+}
+
+// Article Model (For Editor)
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
+pub struct Article {
+    pub id: i32,
+    pub title: String,
+    pub content: String,
+    pub is_published: bool,
+}
+impl DonHooks for Article {}
+
+// ==========================================
+// 2. DEFINE RBAC GUARDS (1-Line Magic)
+// ==========================================
+
+#[derive(DonGuard)]
+#[don_role = "manager"]
+pub struct ManagerGuard;
+
+#[derive(DonGuard)]
+#[don_role = "editor"]
+pub struct EditorGuard;
+
+#[derive(DonGuard)]
+#[don_role = "finance"]
+pub struct FinanceGuard;
+
+// ==========================================
+// 3. ROLE-SPECIFIC LOGIC & DASHBOARDS
+// ==========================================
+
+// A. MANAGER LOGIC: Can see total company salary expense
+async fn manager_dashboard(
+    _guard: ManagerGuard, // Protected!
+    State(state): State<AppState>,
+) -> Result<Json<don_core::serde_json::Value>, String> {
+    
+    // SQL Aggregation Query
+    let row = don_core::sqlx::query!("SELECT SUM(salary) as total_salary FROM users")
+        .fetch_one(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let total = row.total_salary.unwrap_or(0);
+
+    Ok(Json(don_core::serde_json::json!({
+        "message": "Welcome Manager! Here is the company report.",
+        "total_salary_expense": total
+    })))
+}
+
+// B. EDITOR LOGIC: Can publish an article
+async fn editor_publish_article(
+    _guard: EditorGuard, // Protected!
+    State(state): State<AppState>,
+    Path(article_id): Path<i32>,
+) -> Result<Json<don_core::serde_json::Value>, String> {
+    
+    don_core::sqlx::query("UPDATE articles SET is_published = TRUE WHERE id = $1")
+        .bind(article_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(Json(don_core::serde_json::json!({
+        "success": true,
+        "message": format!("Article {} has been published to the public!", article_id)
+    })))
+}
+
+// C. FINANCE LOGIC: Can update a user's salary
+#[derive(Deserialize)]
+struct SalaryPayload { salary: i32 }
+
+async fn finance_update_salary(
+    _guard: FinanceGuard, // Protected!
+    State(state): State<AppState>,
+    Path(user_id): Path<i32>,
+    Json(payload): Json<SalaryPayload>,
+) -> Result<Json<don_core::serde_json::Value>, String> {
+    
+    don_core::sqlx::query("UPDATE users SET salary = $1 WHERE id = $2")
+        .bind(payload.salary)
+        .bind(user_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(Json(don_core::serde_json::json!({
+        "success": true,
+        "message": format!("Salary for User {} updated to ${}", user_id, payload.salary)
+    })))
+}
+
+// ==========================================
+// 4. START THE SERVER
+// ==========================================
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+    println!("Starting Don Framework with Advanced RBAC...");
+
+    let rbac_routes = Router::new()
+        // Manager Route
+        .route("/api/manager/report", get(manager_dashboard))
+        // Editor Route
+        .route("/api/editor/publish/:id", put(editor_publish_article))
+        // Finance Route
+        .route("/api/finance/salary/:id", put(finance_update_salary))
+        // Standard CRUD for Articles
+        .nest("/api/articles", Article::get_api_routes());
+
+    DonServer::new()
+        .port(8080)
+        .auth_key("username")
+        .with_routes(User::get_auth_routes())
+        .with_routes(rbac_routes)
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+than
+```
+cargo run
+```
+than test it:
+
+#### The Ultimate RBAC Test (Terminal Commands)
+
+##### 1. Create Users (Manager, Editor, Finance):
+```
+# Create Manager
+curl -X POST http://localhost:8080/auth/signup -H "Content-Type: application/json" -d '{"id":0, "username": "boss_man", "password": "1243", "role": "manager", "salary": 10000}'
+
+# Create Editor
+curl -X POST http://localhost:8080/auth/signup -H "Content-Type: application/json" -d '{"id":0, "username": "writer_pro", "password": "1243", "role": "editor", "salary": 5000}'
+
+# Create Finance
+curl -X POST http://localhost:8080/auth/signup -H "Content-Type: application/json" -d '{"id":0, "username": "money_guy", "password": "1243", "role": "finance", "salary": 8000}'
+```
+##### 2. Login and Save Tokens
+```
+MANAGER_TOKEN=$(curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username": "boss_man", "password": "1243"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+
+EDITOR_TOKEN=$(curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username": "writer_pro", "password": "1243"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+
+FINANCE_TOKEN=$(curl -s -X POST http://localhost:8080/auth/login -H "Content-Type: application/json" -d '{"username": "money_guy", "password": "1243"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+```
+
+##### 3. Test 1: Manager Logic (Get Total Salary Expense)
+```
+curl -X GET http://localhost:8080/api/manager/report -H "Authorization: Bearer $MANAGER_TOKEN"
+```
+Output: {"message":"Welcome Manager! Here is the company report.","total_salary_expense":23000}
+##### 4. Test 2: Hacker Attempt (Editor trying to view Manager Report)
+```
+curl -X GET http://localhost:8080/api/manager/report -H "Authorization: Bearer $EDITOR_TOKEN"
+```
+Output: Access Denied: Route requires 'manager' role! Your role is 'editor'.  (Blocked!)
+##### 5. Test 3: Editor Logic (Create & Publish Article)
+```
+
+curl -X POST http://localhost:8080/api/articles -H "Content-Type: application/json" -d '{"id":0, "title": "Rust is Awesome", "content": "Learning Don Framework", "is_published": false}'
 
 
+curl -X PUT http://localhost:8080/api/editor/publish/1 -H "Authorization: Bearer $EDITOR_TOKEN"
+```
+Output: {"message":"Article 1 has been published to the public!","success":true}
+##### 6. Test 4: Finance Logic (Update Editor's Salary)
+```
 
+curl -X PUT http://localhost:8080/api/finance/salary/2 -H "Content-Type: application/json" -H "Authorization: Bearer $FINANCE_TOKEN" -d '{"salary": 15000}'
+```
 
 
 
