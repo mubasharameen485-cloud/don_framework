@@ -864,10 +864,106 @@ Output: {"message":"Article 1 has been published to the public!","success":true}
 curl -X PUT http://localhost:8080/api/finance/salary/2 -H "Content-Type: application/json" -H "Authorization: Bearer $FINANCE_TOKEN" -d '{"salary": 15000}'
 ```
 
+#### Important terms and methods to use
 
+In real-world enterprise applications, having a single "Admin" is never enough. You usually have multiple roles like `manager`, `editor`, `finance`, or `moderator`. 
 
+Writing custom middleware to decode JWTs and verify specific roles for every single endpoint can lead to massive boilerplate. **Don Framework** solves this elegantly using the `#[derive(DonGuard)]` macro.
+
+##### Step 1: Define Your Custom Guards
+
+To create a security guard for a specific role, you simply define an empty struct and attach the `DonGuard` macro along with the `#[don_role = "..."]` attribute.
+
+```rust
+use don_macros::DonGuard;
+
+// 1. Creates a Guard that ONLY allows users with the "manager" role
+#[derive(DonGuard)]
+#[don_role = "manager"]
+pub struct ManagerGuard;
+
+// 2. Creates a Guard that ONLY allows users with the "editor" role
+#[derive(DonGuard)]
+#[don_role = "editor"]
+pub struct EditorGuard;
+
+// 3. Creates a Guard that ONLY allows users with the "finance" role
+#[derive(DonGuard)]
+#[don_role = "finance"]
+pub struct FinanceGuard;
+
+```
+##### Under the Hood:
+When the compiler sees #[derive(DonGuard)], it automatically generates an Axum Extractor (Middleware) for that struct. It writes the complex logic to extract the Bearer Token from the HTTP headers, decode the JWT, check the role inside the payload, and instantly reject the request with a 403 Forbidden if the roles do not match.
+##### Step 2: Protect Your Routes
+Now that your guards are defined, how do you protect a route?
+It is incredibly simple: Just add the Guard as a parameter to your route handler function!
+```
+// This route is now 100% protected. 
+// If a user without the "manager" role tries to access it, the framework blocks them before the function even executes!
+async fn manager_dashboard(_guard: ManagerGuard) -> &'static str {
+    "Welcome Manager! Here is the highly confidential financial report. 📊"
+}
+
+// Only users with the "editor" role can access this.
+async fn create_article(_guard: EditorGuard) -> &'static str {
+    "Welcome Editor! You can now write and publish articles. 📝"
+}
+
+// Only users with the "finance" role can access this.
+async fn update_salaries(_guard: FinanceGuard) -> &'static str {
+    "Welcome Finance Team! You can now process the payroll. 💰"
+}
+
+```
+##### Step 3: Mount the Routes
+Finally, mount these handlers to your Axum router just like any standard route:
+```
+use don_core::{DonServer, axum::Router};
+
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+
+    // The routes are protected at the handler level, so you just route them normally!
+    let rbac_routes = Router::new()
+        .route("/api/manager/dashboard", don_core::axum::routing::get(manager_dashboard))
+        .route("/api/editor/article", don_core::axum::routing::post(create_article))
+        .route("/api/finance/payroll", don_core::axum::routing::put(update_salaries));
+
+    DonServer::new()
+        .port(8080)
+        .auth_key("username")
+        .with_routes(rbac_routes)
+        .start()
+        .await
+        .expect("Server crashed!");
+}
+```
+##### Why is this awesome?
+Zero Boilerplate: No need to write manual JWT decoding logic.
+Highly Modular: You can create as many roles as your application needs.
+Secure by Default: The request is intercepted and verified before your business logic runs.
+##### impl
+if you write other logic you can write this in 
+```
+impl DonHooks for Article {}
+```
 
 ---
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ## 📦 4. Active Record ORM (Full CRUD API)
