@@ -4,7 +4,7 @@
 
 **The Django-like, blazing-fast, and developer-friendly web framework for Rust.**
 
-Building web APIs in Rust is incredibly fast and safe, but it often requires writing a lot of boilerplate code (setting up Axum routers, configuring SQLx pools, hashing passwords with Argon2, generating JWTs, etc.). 
+Building web ,,,,,APIs in Rust is incredibly fast and safe, but it often requires writing a lot of boilerplate code (setting up Axum routers, configuring SQLx pools, hashing passwords with Argon2, generating JWTs, etc.). 
 
 **Don Framework** solves this. It acts as a powerful wrapper over `axum` and `sqlx`. By simply adding macros like `#[derive(DonAuth)]` and `#[derive(DonModel)]` to your structs, the framework automatically generates your database queries, API routes, and security guards!
 
@@ -20,7 +20,7 @@ Building web APIs in Rust is incredibly fast and safe, but it often requires wri
 
 # 1. Quick Setup
 
-Create a new Rust project:
+Create a new Rust firstly project:
 ```bash
 
 cargo new my_don_app
