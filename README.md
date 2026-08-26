@@ -1837,7 +1837,7 @@ Coming from Python's Django ecosystem, I wanted to bring the same "plug-and-play
 
 After exploring Rust's procedural macro system and experimenting with compile-time code generation, I created the initial version of **Don Framework**. Throughout the development process, **Google AI Studio** was used extensively as a brainstorming and learning companion while designing the architecture and refining ideas.
 
-Don Framework is an ongoing project, and the long-term vision is to make Rust backend development faster, cleaner, and more enjoyable for developers of all experience levels.
+Don Framework is an ongoing project, and the long-term vision is to make Rust backend development faster, cleaner, and more enjoyable for developers of all experience levels.,,,,,,,,,,,,,,,,,
 
 ###  Connect
 
