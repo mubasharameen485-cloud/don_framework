@@ -39,8 +39,8 @@ dotenvy = "0.15"
 
 
 # The Don Framework
-don_core = "0.1.1"
-don_macros = "0.1.0"
+don_core = "0.2.2"
+don_macros = "0.2.9"
 ```
 Create a .env file in the root of your project:
 
