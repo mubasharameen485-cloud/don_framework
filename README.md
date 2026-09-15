@@ -36,6 +36,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls"] }
 dotenvy = "0.15"
+validator = { version = "0.18", features = ["derive"] }
 
 
 # The Don Framework
