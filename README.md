@@ -393,6 +393,10 @@ impl DonAuthHooks for User {}
 ```
 By doing this, the framework will still run your #[validate] rules, but it will skip the custom hook logic and proceed directly to the database operations.
 
+here is to see full project with next.js:
+```
+https://github.com/mubasharameen485-cloud/Don_framework-next.js-auth
+```
 
 
 
