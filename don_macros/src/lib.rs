@@ -40,6 +40,33 @@ pub fn don_auth_derive(input: TokenStream) -> TokenStream {
     }
 
     let has_role = fields.iter().any(|f| f.to_string() == "role");
+
+
+
+//  Check if struct has 'is_suspended'
+    let has_suspended = fields.iter().any(|f| f.to_string() == "is_suspended");
+    let suspended_check = if has_suspended {
+        quote! {
+            if user.is_suspended {
+                return Err((don_core::axum::http::StatusCode::FORBIDDEN, "Your account is suspended! Please contact the administrator.".to_string()));
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+
+
+
+
+
+
+
+
+
+
+
+
     let role_assignment = if has_role {
         quote! { user.role.clone() }
     } else {
@@ -143,6 +170,7 @@ pub fn don_auth_derive(input: TokenStream) -> TokenStream {
                     if !don_core::argon2::PasswordVerifier::verify_password(&don_core::argon2::Argon2::default(), password_val.as_bytes(), &parsed_hash).is_ok() {
                         return Err((don_core::axum::http::StatusCode::UNAUTHORIZED, "Invalid credentials".to_string()));
                     }
+                    #suspended_check
 
                     (#role_assignment, auth_val.to_string())
                 };

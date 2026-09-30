@@ -1,87 +1,84 @@
-// example_app/src/main.rs
+
 
 use don_core::{
-    DonServer, AppState, DonHooks,
-    axum::{Router, extract::State, Json, routing::delete}
+    DonServer, AppState,DonAuthHooks, DonAdmin, 
+    axum::{Router, extract::{State, Path}, Json, routing::{get, put}}
 };
-use don_macros::DonModel;
-use validator::Validate;
+use don_macros::DonAuth;
 use serde::{Deserialize, Serialize};
 
 // ==========================================
-// 1. THE MODEL (WITH DECLARATIVE VALIDATION)
+// 1. STRICT AUTH MODEL
 // ==========================================
-#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel, Validate)]
-#[don_validate] // Framework ko bataya ke validation ON karni hai
-pub struct Employee {
-    pub id: i32, 
-    
-    #[validate(length(min = 3, message = "Name must be at least 3 characters!"))]
-    pub name: String,
-    
-    #[validate(email(message = "Invalid email format!"))]
-    pub email: String,
-    
-    #[validate(range(min = 18, max = 60, message = "Age must be between 18 and 60!"))]
-    pub age: i32,
-    
-    pub salary: i32, // Iski validation hum Hooks mein karenge!
-    pub department: String,
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonAuth)]
+#[don_auth_key = "username"] 
+pub struct User {
+    pub id: i32,
+    pub username: String,
+    pub password: String,
+    pub role: String,
+    pub is_suspended: bool, 
 }
 
+//DonAuthHppls is empty if you like than add any logic and function
+impl DonAuthHooks for User {}
 // ==========================================
-// 2. LIFECYCLE HOOKS (CUSTOM BUSINESS LOGIC)
+// 2. ADMIN LOGIC (CUSTOM HANDLERS)
 // ==========================================
-impl DonHooks for Employee {
-    async fn before_save(&mut self) -> Result<(), String> {
-        // Custom Logic 1: Agar department "IT" hai, toh salary kam az kam 5000 honi chahiye
-        if self.department == "IT" && self.salary < 5000 {
-            return Err("IT Department employees must have a salary of at least 5000!".to_string());
-        }
 
-        // Custom Logic 2: Data Formatting
-        self.name = self.name.trim().to_uppercase();
-        self.department = self.department.trim().to_uppercase();
+// A. Get All Users (Admin Only)
+async fn get_all_users(
+    _admin: DonAdmin, // 1. Guard: only admin allowed
+    State(state): State<AppState>, // 2. Database access
+) -> Result<Json<Vec<User>>, String> {
+    
+    // Custom SQL Query to fetch all users
+    let users = don_core::sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY id ASC")
+        .fetch_all(&state.db)
+        .await
+        .map_err(|e| e.to_string())?;
 
-        Ok(())
-    }
-
-    async fn before_update(&mut self) -> Result<(), String> {
-        // Update hone se pehle bhi same rules apply karo
-        self.before_save().await
-    }
+    Ok(Json(users))
 }
 
-// ==========================================
-// 3. CUSTOM ROUTES (e.g., DELETE MANY)
-// ==========================================
-// Macro standard 5 routes banata hai. Agar "Delete All" chahiye toh developer aise likhega:
-async fn delete_all_employees(State(state): State<AppState>) -> Result<Json<don_core::serde_json::Value>, String> {
-    don_core::sqlx::query("DELETE FROM employees")
+// B. Suspend a User (Admin Only)
+async fn suspend_user(
+    _admin: DonAdmin, // Guard
+    State(state): State<AppState>, // Database access
+    Path(user_id): Path<i32>, // URL  User ID (e.g., /admin/suspend/5)
+) -> Result<Json<don_core::serde_json::Value>, String> {
+    
+    // Custom SQL Query to update user status
+    don_core::sqlx::query("UPDATE users SET is_suspended = TRUE WHERE id = $1")
+        .bind(user_id)
         .execute(&state.db)
         .await
         .map_err(|e| e.to_string())?;
-        
-    Ok(Json(don_core::serde_json::json!({"message": "All employees deleted!"})))
+
+    Ok(Json(don_core::serde_json::json!({
+        "success": true,
+        "message": format!("User ID {} has been suspended successfully!", user_id)
+    })))
 }
 
 // ==========================================
-// 4. START SERVER
+// 3. START THE SERVER
 // ==========================================
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    println!("Starting Don Framework with Ultimate CRUD Validation...");
+    println!("Starting Don Framework with Admin Logic...");
 
-    let api_routes = Router::new()
-        // Standard 5 CRUD Routes (POST, GET All, GET One, PUT, DELETE One)
-        .nest("/api/employees", Employee::get_api_routes())
-        // Custom Route (DELETE Many)
-        .route("/api/employees/delete_all", delete(delete_all_employees));
+    // Admin Routes Setup
+    let admin_routes = Router::new()
+        .route("/admin/users", get(get_all_users))
+        .route("/admin/suspend/:id", put(suspend_user)); // PUT request for updating
 
     DonServer::new()
         .port(8080)
-        .with_routes(api_routes)
+        .auth_key("username")
+        .with_routes(User::get_auth_routes())
+        .with_routes(admin_routes) // Inject Admin routes
         .start()
         .await
         .expect("Server crashed!");

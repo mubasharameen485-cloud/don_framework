@@ -20,7 +20,7 @@ Building web APIs in Rust is incredibly fast and safe, but it often requires wri
 
 # 1. Quick Setup
 
-Create a new Rust firstly project:,,,,
+Create a new Rust project:
 ```bash
 
 cargo new my_don_app
@@ -36,12 +36,11 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls"] }
 dotenvy = "0.15"
-validator = { version = "0.18", features = ["derive"] }
 
 
 # The Don Framework
-don_core = "0.2.9"
-don_macros = "0.2.9"
+don_core = "0.1.1"
+don_macros = "0.1.0"
 ```
 Create a .env file in the root of your project:
 
@@ -393,10 +392,6 @@ impl DonAuthHooks for User {}
 ```
 By doing this, the framework will still run your #[validate] rules, but it will skip the custom hook logic and proceed directly to the database operations.
 
-here is to see full project with next.js:
-```
-https://github.com/mubasharameen485-cloud/Don_framework-next.js-auth
-```
 
 
 
@@ -1842,7 +1837,7 @@ Coming from Python's Django ecosystem, I wanted to bring the same "plug-and-play
 
 After exploring Rust's procedural macro system and experimenting with compile-time code generation, I created the initial version of **Don Framework**. Throughout the development process, **Google AI Studio** was used extensively as a brainstorming and learning companion while designing the architecture and refining ideas.
 
-Don Framework is an ongoing project, and the long-term vision is to make Rust backend development faster, cleaner, and more enjoyable for developers of all experience levels.,,,,,,,,,,,,,,,,,
+Don Framework is an ongoing project, and the long-term vision is to make Rust backend development faster, cleaner, and more enjoyable for developers of all experience levels.
 
 ###  Connect
 
