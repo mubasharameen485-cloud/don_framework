@@ -609,6 +609,17 @@ async fn main() {
 }
 ```
 
+here is to see full stack project with next.js:
+```
+https://github.com/mubasharameen485-cloud/-Route-Protection-Admin-Guards-rust-next.js
+```
+
+
+
+
+
+
+
 # RBAC (Role-Based Access Control)
  setup migration
 ```
