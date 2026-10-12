@@ -960,6 +960,11 @@ if you write other logic you can write this in
 ```
 impl DonHooks for Article {}
 ```
+here is to fullstack project and testing in with next.js
+```
+https://github.com/mubasharameen485-cloud/RBAC-Role-Based-Access-Control--don_framework
+```
+
 
 ---
 
