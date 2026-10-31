@@ -1138,6 +1138,7 @@ pub struct Product {
 ```
 
 
+
 ## 3. Implementing Lifecycle Hooks
 ```
 impl DonHooks for Product {}
@@ -1183,7 +1184,10 @@ This is the framework's wrapper around the Axum server, Tokio TCP listener, and 
 This takes the routes you nested above and officially attaches them to the running server. You can chain .with_routes() multiple times to attach Auth routes, Admin routes, and CRUD routes seamlessly.
 
 
-
+here is to see full stack project with next.js:
+```
+https://github.com/mubasharameen485-cloud/Active-Record-ORM-Full-CRUD-API--rust-don_framework-next.js
+```
 ---
 ---
 ## 🪝 5. Lifecycle Hooks & Custom Validation
@@ -1267,6 +1271,14 @@ curl -X POST http://localhost:8080/api/products \
      -d '{"id": 0, "name": "gaming mouse", "price": 50}'
 Output: {"id":1,"name":"GAMING MOUSE","price":50} ✅ (Name automatically capitalized!).
 ```
+
+here is to see ful project with next.js:
+```
+https://github.com/mubasharameen485-cloud/Lifecycle-Hooks-Custom-Validation_don_framework-next.js
+```
+
+
+
 ## 📄 6. Zero-Config Pagination & Query Params
 
 Handling pagination (Limits, Offsets, Query Params) in standard APIs requires writing repetitive boilerplate for every single route. 
