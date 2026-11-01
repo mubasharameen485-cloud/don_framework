@@ -1359,6 +1359,16 @@ Fetch the next 2 records from Page 2:
 ```
 curl -X GET "http://localhost:8080/api/products?page=2&limit=2"
 ```
+
+
+
+here is to see full project:
+```
+https://github.com/mubasharameen485-cloud/Zero-Config-Pagination-Query-Params
+```
+
+
+
 ## 🔗 7. 1-Line Database Relationships
 
 Handling relationships like **One-to-One**, **One-to-Many**, and **Many-to-Many** usually requires writing complex, error-prone SQL `JOIN` queries and custom API handlers. 
