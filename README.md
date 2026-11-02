@@ -1507,6 +1507,13 @@ curl -X GET http://localhost:8080/api/users/1/products
 curl -X GET http://localhost:8080/api/products/1/tags
 ```
 
+
+
+here is to view full project:
+```
+https://github.com/mubasharameen485-cloud/1-Line-Database-Relationships
+```
+
 ## 🔐 8. Flexible Role-Based Access Control (RBAC)
 
 In a real-world application, you don't just have an "Admin". You have Managers, Editors, Finance teams, etc. Don Framework provides a highly flexible IAM (Identity and Access Management) system.
