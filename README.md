@@ -1380,46 +1380,100 @@ Don Framework abstracts this away completely! You can generate fully-functional 
 Here is a complete, runnable example showing how to link Users, Profiles, Products, and Tags without writing a single line of SQL:
 
 ```rust
-use don_core::{DonServer, axum::Router, DonHooks};
+use don_core::{
+    DonServer, AppState, DonHooks,
+    traits::DonAuthHooks,
+    axum::{Router, extract::{State, Path}, Json, routing::post}
+};
 use don_core::{has_many_route, has_one_route, many_to_many_route}; 
 use don_macros::{DonAuth, DonModel};
 use serde::{Deserialize, Serialize};
 
-#[derive(DonAuth)]
-pub struct User { pub email: String }
+// ==========================================
+// 1. MODELS (Strict Structs)
+// ==========================================
+
+
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonAuth)]
+pub struct User { 
+    pub id: i32,
+    pub email: String,
+    pub password: String,
+}
+impl DonAuthHooks for User {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
-pub struct Profile { pub id: i32, pub user_id: i32, pub bio: String }
+pub struct Profile { 
+    pub id: i32, 
+    pub user_id: i32, 
+    pub bio: String 
+}
 impl DonHooks for Profile {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
-pub struct Product { pub id: i32, pub user_id: i32, pub name: String, pub price: i32 }
+pub struct Product { 
+    pub id: i32, 
+    pub user_id: i32, 
+    pub name: String, 
+    pub price: i32 
+}
 impl DonHooks for Product {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
-pub struct Tag { pub id: i32, pub name: String }
+pub struct Tag { 
+    pub id: i32, 
+    pub name: String 
+}
 impl DonHooks for Tag {}
 
+// ==========================================
+// 2. HELPER: Link Product & Tag (Many-to-Many)
+// ==========================================
+async fn link_product_tag(
+    State(state): State<AppState>,
+    Path((product_id, tag_id)): Path<(i32, i32)>,
+) -> Result<Json<don_core::serde_json::Value>, String> {
+    don_core::sqlx::query(
+        "INSERT INTO product_tags (product_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+    )
+    .bind(product_id)
+    .bind(tag_id)
+    .execute(&state.db)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(Json(don_core::serde_json::json!({
+        "success": true, 
+        "message": format!("Tag {} successfully linked to Product {}", tag_id, product_id)
+    })))
+}
+
+// ==========================================
+// 3. START SERVER
+// ==========================================
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    println!("Starting Don Framework with 1-Line Relations...");
+    println!(" Starting Don Framework with 1-Line Relations on Port 8080...");
 
     let api_routes = Router::new()
+        // Standard CRUD
         .nest("/api/profiles", Profile::get_api_routes())
         .nest("/api/products", Product::get_api_routes())
         .nest("/api/tags", Tag::get_api_routes())
         
-        // ✨ THE MAGIC: 1-Line Relationship Routes!
-        
-        // 1. ONE-TO-ONE (Get User's Profile -> Returns Object {})
+        // ✨ 1-LINE RELATION ROUTES ✨
+        // 1. One-to-One: /api/users/:id/profile
         .merge(has_one_route::<Profile>("/api/users/:id/profile", "profiles", "user_id"))
         
-        // 2. ONE-TO-MANY (Get User's Products -> Returns Array [])
+        // 2. One-to-Many: /api/users/:id/products
         .merge(has_many_route::<Product>("/api/users/:id/products", "products", "user_id"))
         
-        // 3. MANY-TO-MANY (Get Product's Tags -> Returns Array [])
-        .merge(many_to_many_route::<Tag>("/api/products/:id/tags", "tags", "product_tags", "product_id", "tag_id"));
+        // 3. Many-to-Many: /api/products/:id/tags
+        .merge(many_to_many_route::<Tag>("/api/products/:id/tags", "tags", "product_tags", "product_id", "tag_id"))
+        
+        // Many-to-Many Link Helper Route
+        .route("/api/products/:product_id/tags/:tag_id", post(link_product_tag));
 
     DonServer::new()
         .port(8080)
@@ -1438,37 +1492,39 @@ sqlx migrate add all_relations_tables
 ```
 past this new .sql file:
 ```
-CREATE TABLE users (
+-- Add migration script here
+-- 1. Users Table (password field ke sath)
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    metadata JSONB DEFAULT '{}'
+    password VARCHAR(255) NOT NULL
 );
 
--- 1-to-1 Relation (User has 1 Profile)
-CREATE TABLE profiles (
+-- 2. Profiles Table (1-to-1 Relation)
+CREATE TABLE IF NOT EXISTS profiles (
     id SERIAL PRIMARY KEY,
     user_id INT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     bio TEXT NOT NULL
 );
 
--- 1-to-N Relation (User has many Products)
-CREATE TABLE products (
+-- 3. Products Table (1-to-N Relation)
+CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     price INT NOT NULL
 );
 
--- N-to-N Relation (Products have many Tags)
-CREATE TABLE tags (
+-- 4. Tags Table (N-to-N Relation)
+CREATE TABLE IF NOT EXISTS tags (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL
 );
 
-CREATE TABLE product_tags (
-    product_id INT REFERENCES products(id) ON DELETE CASCADE,
-    tag_id INT REFERENCES tags(id) ON DELETE CASCADE,
+-- 5. Join Table (Many-to-Many Link)
+CREATE TABLE IF NOT EXISTS product_tags (
+    product_id INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    tag_id INT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
     PRIMARY KEY (product_id, tag_id)
 );
 ```
