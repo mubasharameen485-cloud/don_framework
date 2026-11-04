@@ -1689,6 +1689,11 @@ curl -X GET http://localhost:8080/manager/dashboard \
 Welcome Manager! You have access to the financial reports.
 
 
+here is ti to view full project:
+```
+https://github.com/mubasharameen485-cloud/Flexible-Role-Based-Access-Control-RBAC-next.js-don_framework
+```
+
 ##  9. 1-Line File & Image Uploads
 
 Handling multipart form data, generating unique filenames, and serving static files (like images) to the browser can take hundreds of lines of code in Rust.
