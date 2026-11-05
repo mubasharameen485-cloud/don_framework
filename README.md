@@ -1575,31 +1575,63 @@ https://github.com/mubasharameen485-cloud/1-Line-Database-Relationships
 In a real-world application, you don't just have an "Admin". You have Managers, Editors, Finance teams, etc. Don Framework provides a highly flexible IAM (Identity and Access Management) system.
 
 By using the `#[derive(DonGuard)]` macro, you can generate custom middleware extractors for any role in just 2 lines of code!
+but firstly setup .sql:
+setup:
+```
+# 1. Database reset karo
+sqlx database drop -y
+sqlx database create
+
+
+
+# 3. Nayi migration banao
+sqlx migrate add create_rbac_users
+```
+.sql
+```
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'user' -- YEH ZAROORI HAI RBAC KE LIYE!
+);
+```
 
 ### The Code (`src/main.rs`)
 
 Here is a complete, runnable example showing how to create custom roles and protect specific routes:
 
 ```rust
-use don_core::{DonServer, axum::Router};
-use don_macros::{DonAuth, DonGuard}; 
+use don_core::{
+    DonServer, 
+    axum::Router, 
+    traits::DonAuthHooks
+};
+use don_macros::{DonAuth, DonGuard};
+use serde::{Deserialize, Serialize};
 
-// 1. Auth Model (Handles Signup/Login)
-#[derive(DonAuth)]
+// ==========================================
+// 1. STRICT AUTH MODEL (id, email, password, role)
+// ==========================================
+#[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonAuth)]
 pub struct User { 
-    pub email: String 
+    pub id: i32,
+    pub email: String,
+    pub password: String,
+    pub role: String, // NAYA: Role hona lazmi hai
 }
+
+// Hook empty implement kiya
+impl DonAuthHooks for User {}
 
 // ==========================================
 // 2. DEFINE CUSTOM ROLE GUARDS
 // ==========================================
 
-// Creates a Guard that only allows users with role="manager"
 #[derive(DonGuard)]
 #[don_role = "manager"]
 pub struct ManagerGuard;
 
-// Creates a Guard that only allows users with role="editor"
 #[derive(DonGuard)]
 #[don_role = "editor"]
 pub struct EditorGuard;
@@ -1608,25 +1640,24 @@ pub struct EditorGuard;
 // 3. PROTECTED ROUTES
 // ==========================================
 
-// Only Managers can access this route
+// Sirf Manager access kar sakta hai
 async fn manager_dashboard(_guard: ManagerGuard) -> &'static str {
-    "Welcome Manager! You have access to the financial reports. 📊"
+    "Welcome Manager! You have access to Financial Reports. 📊"
 }
 
-// Only Editors can access this route
+// Sirf Editor access kar sakta hai
 async fn editor_dashboard(_guard: EditorGuard) -> &'static str {
-    "Welcome Editor! You can write and edit articles. 📝"
+    "Welcome Editor! You have access to Publishing Articles. 📝"
 }
 
 // ==========================================
-// 4. START THE SERVER
+// 4. START SERVER
 // ==========================================
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    println!("Starting Don Framework with Custom RBAC...");
+    println!(" Starting Don Framework with RBAC on Port 8080...");
 
-    // Attach protected routes
     let custom_routes = Router::new()
         .route("/manager/dashboard", don_core::axum::routing::get(manager_dashboard))
         .route("/editor/dashboard", don_core::axum::routing::get(editor_dashboard));
