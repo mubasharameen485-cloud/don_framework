@@ -1783,6 +1783,15 @@ Output:
 }
 ```
 
+here is to view full stack project with next.js:
+```
+https://github.com/mubasharameen485-cloud/1-Line-File-Image-Uploads
+```
+
+
+
+
+
 ##  11. 100% Dynamic Authentication (Schema-less JSONB)
 
 Most frameworks force you to use `email` or `username` for authentication. **Don Framework** gives you ultimate flexibility. You can use ANY field (e.g., `phone_number`, `cnic`, `school_id`) as your primary login key!
