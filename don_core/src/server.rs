@@ -7,8 +7,9 @@ use tokio::net::TcpListener;
 use tracing::info;
 use tower_http::services::ServeDir;
 use tokio::sync::broadcast;
-// NAYA: CORS import kiya
 use tower_http::cors::{Any, CorsLayer};
+
+use axum::extract::DefaultBodyLimit;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -67,24 +68,24 @@ impl DonServer {
             auth_key: self.auth_key.clone() 
         };
 
-        // ==========================================
-        // JADOO: CORS LAYER (Browser Errors Khatam!)
-        // ==========================================
+        // 1. CORS Layer (Next.js se connect karne ke liye)
         let cors = CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)
             .allow_headers(Any);
 
+        // 2. Server Pipeline (CORS + 50MB Limit + Static Uploads Folder)
         let app = self.router
-            .layer(cors) // CORS yahan laga diya!
+            .layer(cors)
+            .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB LIMIT! (2MB wala masla khatam)
             .nest_service("/uploads", ServeDir::new("uploads"))
             .with_state(state);
 
         let addr = format!("0.0.0.0:{}", self.port);
         let listener = TcpListener::bind(&addr).await?;
         
-        info!("🚀 Don Server is running on http://{}", addr);
-        info!("🔐 Authentication Primary Key set to: '{}'", self.auth_key);
+        info!(" Don Server is running on http://{}", addr);
+        info!(" Authentication Primary Key set to: '{}'", self.auth_key);
         
         axum::serve(listener, app).await?;
 
