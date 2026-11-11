@@ -1,0 +1,16 @@
+# /Cargo.toml (Root Workspace File)
+
+[workspace]
+members = [
+    "don_macros",
+    "don_core",
+    "example_app",
+    "don_cli"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.3.1"
+authors = ["Mubashar Ameen <mubasharameen485@gmail.com>"]
+edition = "2021"
+description = "A blazing fast, Django-like web framework for Rust."
