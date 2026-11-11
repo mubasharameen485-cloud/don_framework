@@ -1789,6 +1789,32 @@ https://github.com/mubasharameen485-cloud/1-Line-File-Image-Uploads
 ```
 
 
+## 10 Don_cli:
+now everyone easily install the don_framework in command system in our machine
+first  install globally in your system:
+```
+cargo install don_cli
+```
+then setup:
+```
+don new my_dream_app
+```
+and then setup project folder:
+```
+cd my_dream_app
+sqlx database create
+cargo run
+```
+
+
+
+
+
+
+
+
+
+
 
 
 
