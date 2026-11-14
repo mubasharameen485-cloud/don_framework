@@ -2,7 +2,7 @@
 
 [package]
 name = "don_cli"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 description = "Official CLI for Don Framework - Scaffold Rust APIs in 1 second"
 license = "MIT"

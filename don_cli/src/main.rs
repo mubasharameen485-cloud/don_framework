@@ -38,7 +38,6 @@ fn main() {
 fn create_project(project_name: &str) {
     let project_path = Path::new(project_name);
 
-    // 1. Check if directory already exists
     if project_path.exists() {
         eprintln!(
             "{} Directory '{}' already exists! Choose another name.",
@@ -50,11 +49,10 @@ fn create_project(project_name: &str) {
 
     println!(
         "{} Creating a new Don Framework project: {}",
-        "🚀".bold(),
+        "".bold(),
         project_name.cyan().bold()
     );
 
-    // 2. Create Directory Structure
     let dirs = [
         format!("{}/src", project_name),
         format!("{}/migrations", project_name),
@@ -68,7 +66,7 @@ fn create_project(project_name: &str) {
         });
     }
 
-    // 3. Write Cargo.toml
+    // 1. Write Cargo.toml
     let cargo_toml_content = format!(
 r#"[package]
 name = "{}"
@@ -90,9 +88,13 @@ don_macros = "0.3.1"
     );
     fs::write(format!("{}/Cargo.toml", project_name), cargo_toml_content).unwrap();
 
-    // 4. Write .env file
+    // 2. Write .env file with clear instructions for the user's database password
     let env_content = format!(
-r#"DATABASE_URL=postgres://postgres:password@localhost:5432/{}_db
+r#"# Database Connection String
+# REPLACE 'postgres' and 'your_password' with your actual PostgreSQL / pgAdmin credentials!
+DATABASE_URL=postgres://postgres:your_password@localhost:5432/{}_db
+
+# Security & Admin Config
 JWT_SECRET=super_secret_don_key_12345678901234567890
 SUPERUSER_ID=admin_boss
 SUPERUSER_PASSWORD=supersecret
@@ -101,8 +103,8 @@ SUPERUSER_PASSWORD=supersecret
     );
     fs::write(format!("{}/.env", project_name), env_content).unwrap();
 
-    // 5. Write default migration (migrations/init.sql)
-    let migration_content = r#"-- Default initial migration for Don Framework
+    // 3. Write default migration (migrations/init.sql)
+    let migration_content = r#"-- Initial migration for Don Framework
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) UNIQUE NOT NULL,
@@ -122,13 +124,14 @@ CREATE TABLE IF NOT EXISTS products (
     )
     .unwrap();
 
-    // 6. Write boilerplate src/main.rs
+    // 4. Write boilerplate src/main.rs (Latest Strict Auth + Hooks + CRUD)
     let main_rs_content = r#"use don_core::{DonServer, DonHooks, axum::Router};
+use don_core::traits::DonAuthHooks;
 use don_core::upload::get_upload_routes;
 use don_macros::{DonAuth, DonModel};
 use serde::{Deserialize, Serialize};
 
-// 1. Authentication Model (Zero-boilerplate Signup & Login)
+// 1. Strict Authentication Model
 #[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonAuth)]
 #[don_auth_key = "username"]
 pub struct User {
@@ -138,7 +141,17 @@ pub struct User {
     pub role: String,
 }
 
-// 2. Active Record CRUD Model (Auto-generates 5 RESTful routes + Pagination)
+// Auth Hooks (Pre-signup and Pre-login logic)
+impl DonAuthHooks for User {
+    async fn before_signup(&mut self) -> Result<(), String> {
+        Ok(())
+    }
+    async fn before_login(_primary_key: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+// 2. Active Record CRUD Model
 #[derive(Debug, Clone, Serialize, Deserialize, don_core::sqlx::FromRow, DonModel)]
 pub struct Product {
     pub id: i32,
@@ -146,7 +159,7 @@ pub struct Product {
     pub price: i32,
 }
 
-// Optional: Lifecycle hooks for custom validation
+// Lifecycle hooks for custom validation
 impl DonHooks for Product {
     async fn before_save(&mut self) -> Result<(), String> {
         self.name = self.name.trim().to_uppercase();
@@ -157,7 +170,7 @@ impl DonHooks for Product {
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    println!("🦀 Welcome to your new Don Framework App!");
+    println!(" Welcome to your new Don Framework App!");
 
     let api_routes = Router::new()
         .nest("/api/products", Product::get_api_routes())
@@ -175,7 +188,7 @@ async fn main() {
 "#;
     fs::write(format!("{}/src/main.rs", project_name), main_rs_content).unwrap();
 
-    // 7. Write .gitignore
+    // 5. Write .gitignore
     let gitignore_content = r#"/target
 .env
 uploads/*
@@ -184,14 +197,14 @@ uploads/*
     fs::write(format!("{}/.gitignore", project_name), gitignore_content).unwrap();
     fs::write(format!("{}/uploads/.gitkeep", project_name), "").unwrap();
 
-    // 8. Success Output
+    // 6. Success Output
     println!(
         "{} Created project directory: {}",
         "✔".green().bold(),
         project_name
     );
     println!("{} Generated Cargo.toml with dependencies", "✔".green().bold());
-    println!("{} Created .env configuration", "✔".green().bold());
+    println!("{} Created .env configuration (Remember to update your DB password!)", "✔".green().bold());
     println!("{} Created migrations/init.sql", "✔".green().bold());
     println!("{} Created boilerplate src/main.rs", "✔".green().bold());
 
